@@ -75,6 +75,14 @@ let hovered = false;
 let fullscreen = false;
 let dwellTimer = 0;
 let hideTimer = 0;
+let resting = false;
+
+/** Low-memory mode for the web view while Perch is tucked away. */
+function setResting(on: boolean) {
+  if (on === resting) return;
+  resting = on;
+  invoke("set_resting", { resting: on });
+}
 
 function setState(next: State) {
   if (next === state) return;
@@ -87,7 +95,11 @@ function setState(next: State) {
   if (next === "open") startTicker();
   else stopTicker();
   if (next === "idle") {
-    setTimeout(() => state === "idle" && setTab(0, true), 600);
+    setTimeout(() => {
+      if (state !== "idle") return;
+      setTab(0, true);
+      setResting(true);
+    }, 600);
   }
   requestAnimationFrame(updateMarquees);
 }
@@ -109,6 +121,7 @@ listen<boolean>("hover", ({ payload }) => {
   hovered = payload;
   if (hovered) {
     clearTimeout(hideTimer);
+    setResting(false);
     if (state === "idle") {
       clearTimeout(dwellTimer);
       dwellTimer = window.setTimeout(
@@ -360,6 +373,7 @@ setTab(0, true);
 render();
 reportHitRect();
 invoke<boolean>("ui_ready").then((fs) => (fullscreen = fs));
+setTimeout(() => state === "idle" && setResting(true), 3000);
 invoke<{ level: number; muted: boolean }>("volume_get").then((v) =>
   island.style.setProperty("--v", String(v.muted ? 0 : v.level)),
 );

@@ -33,6 +33,27 @@ fn media_cmd(media: State<media::Handle>, action: String, value: Option<f64>) {
     media.send(media::Msg::Cmd(cmd));
 }
 
+/// While tucked away, ask WebView2 to drop caches and trim its working set.
+#[tauri::command]
+fn set_resting(win: tauri::WebviewWindow, resting: bool) {
+    let _ = win.with_webview(move |wv| unsafe {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+            ICoreWebView2_19,
+        };
+        use windows::core::Interface;
+        if let Ok(core) = wv.controller().CoreWebView2() {
+            if let Ok(c) = core.cast::<ICoreWebView2_19>() {
+                let _ = c.SetMemoryUsageTargetLevel(if resting {
+                    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+                } else {
+                    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+                });
+            }
+        }
+    });
+}
+
 #[tauri::command]
 fn volume_get() -> audio::Volume {
     audio::get()
@@ -76,6 +97,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_hit_rect,
             ui_ready,
+            set_resting,
             media_cmd,
             volume_get,
             volume_step,

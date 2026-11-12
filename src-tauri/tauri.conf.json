@@ -30,7 +30,8 @@
         "focus": false,
         "focusable": false,
         "visible": false,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate,OptimizationHints,MediaRouter,AutofillServerCommunication,SpareRendererForSitePerProcess,CalculateNativeWinOcclusion --enable-features=NetworkServiceInProcess2 --disable-gpu --disable-gpu-compositing --in-process-gpu --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --disable-sync --no-first-run --disable-breakpad --js-flags=--max-old-space-size=24 --max-semi-space-size=1"
       }
     ],
     "security": {
