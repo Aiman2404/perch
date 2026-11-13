@@ -35,6 +35,12 @@ fn temp_root() -> PathBuf {
     std::env::temp_dir().join("Perch").join("shelf")
 }
 
+/// A fresh folder for pictures that arrive without a file (browser, chat apps, Photos).
+pub fn incoming_dir() -> PathBuf {
+    static N: AtomicU32 = AtomicU32::new(0);
+    temp_root().join(format!("in{}", N.fetch_add(1, Ordering::Relaxed)))
+}
+
 /// Leftovers from a previous session (crash, shutdown) are not kept.
 pub fn clean_temp() {
     let _ = std::fs::remove_dir_all(temp_root());
@@ -73,8 +79,9 @@ impl Shelf {
             let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
             let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or(p.clone());
             let mut path = p.clone();
-            let mut copied = false;
-            if copy {
+            // Saved by us from a picture drag: it already lives in our temp folder.
+            let mut copied = src.starts_with(temp_root());
+            if copy && !copied {
                 let dst = temp_root().join(id.to_string()).join(&name);
                 if std::fs::create_dir_all(dst.parent().unwrap()).is_ok() && copy_into(&src, &dst).is_ok() {
                     path = dst.to_string_lossy().into_owned();
@@ -108,7 +115,9 @@ impl Shelf {
         if let Some(pos) = items.iter().position(|i| i.id == id) {
             let it = items.remove(pos);
             if it.copied {
-                let _ = std::fs::remove_dir_all(temp_root().join(it.id.to_string()));
+                if let Some(dir) = Path::new(&it.path).parent().filter(|d| d.starts_with(temp_root())) {
+                    let _ = std::fs::remove_dir_all(dir);
+                }
             }
         }
     }
