@@ -152,8 +152,12 @@ function setResting(on: boolean) {
   // The page process keeps memory it grew while panels were open. Once Perch has been
   // tucked away for a while, reload the page: all real state lives in the Rust core,
   // so this just returns memory to its fresh-start level.
+  scheduleRefresh();
+}
+
+function scheduleRefresh() {
   clearTimeout(refreshTimer);
-  if (on && dirty) {
+  if (resting && dirty) {
     refreshTimer = window.setTimeout(() => {
       if (resting && state === "idle" && !hovered && !near) location.reload();
     }, REFRESH_AT_REST_MS);
@@ -197,6 +201,10 @@ function scheduleRest() {
     else if (atRest()) scheduleRest();
   }, REST_AFTER_MS);
 }
+listen("reclaim", () => {
+  dirty = true;
+  scheduleRefresh();
+});
 listen<boolean>("near", ({ payload }) => {
   near = payload;
   if (near) {

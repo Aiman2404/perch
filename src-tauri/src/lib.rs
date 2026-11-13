@@ -223,7 +223,7 @@ fn build_settings(app: &AppHandle, args: &str) {
     if app.get_webview_window("settings").is_some() {
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+    let built = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Perch")
         .inner_size(780.0, 540.0)
         .min_inner_size(680.0, 460.0)
@@ -233,6 +233,16 @@ fn build_settings(app: &AppHandle, args: &str) {
         .center()
         .additional_browser_args(args)
         .build();
+    // The window's page shares the island's page process. Once it's closed, let the island
+    // hand that memory back with its usual refresh-at-rest.
+    if let Ok(w) = built {
+        let app = app.clone();
+        w.on_window_event(move |e| {
+            if let tauri::WindowEvent::Destroyed = e {
+                let _ = app.emit_to("main", "reclaim", ());
+            }
+        });
+    }
 }
 
 #[tauri::command]
