@@ -43,7 +43,8 @@ button[disabled] { opacity: 0.28; pointer-events: none; }
 svg { fill: currentColor; }
 img { -webkit-user-drag: none; pointer-events: none; }
 
-body.rest .layer, body.rest .vol { display: none; }
+body.rest .layer:not(.lv), body.rest .vol { display: none; }
+body.fs-hide #island { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 
 /* ---------- the island ---------- */
 
@@ -65,6 +66,7 @@ body.rest .layer, body.rest .vol { display: none; }
     border-radius var(--dur) var(--ease),
     box-shadow 0.3s ease;
 }
+#island[data-state="live"] { --w: 176px; --h: 28px; --r: 13px; --e: 6px; }
 #island[data-state="peek"] { --w: 312px; --h: 42px; --r: 17px; --e: 8px; }
 #island[data-state="drop"] { --w: 300px; --h: 54px; --r: 20px; --e: 10px; }
 #island[data-state="open"] { --w: 404px; --h: 128px; --r: 26px; --e: 12px; }
@@ -96,6 +98,7 @@ body.rest .layer, body.rest .vol { display: none; }
 }
 #island[data-state="peek"] .peek,
 #island[data-state="drop"] .drop,
+#island[data-state="live"] .lv,
 #island[data-state="open"] .panel {
   opacity: 1;
   scale: 1;
@@ -666,3 +669,135 @@ body.rest .layer, body.rest .vol { display: none; }
   #island, .layer, .tab, .ear, .sheet { transition-duration: 0.01ms !important; }
   .editing .tile { animation: none !important; }
 }
+
+/* ---------- live activities (timer, charger) ---------- */
+
+.lv {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px 1px;
+  font: 600 12px var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.lv-ic { width: 14px; height: 14px; flex: none; fill: none; color: #ff9f0a; }
+.lv-txt { white-space: nowrap; }
+.lv-ring {
+  position: absolute;
+  left: 18%; right: 18%; bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--faint);
+  overflow: hidden;
+}
+.lv-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #ff9f0a;
+  transform-origin: 0 50%;
+  scale: var(--lp, 0) 1;
+  transition: scale 1s linear;
+}
+#island.lv-charge .lv-ic, #island.lv-battery .lv-ic { fill: currentColor; color: #30d158; }
+#island.lv-battery .lv-ic { color: var(--dim); }
+#island.lv-charge .lv-ring::after { background: #30d158; scale: var(--bp, 0) 1; }
+#island.lv-battery .lv-ring::after { background: var(--dim); scale: var(--bp, 0) 1; }
+#island.lv-alarm[data-state="live"] { --w: 190px; animation: alarm 1.1s ease-in-out infinite; cursor: pointer; }
+#island.lv-alarm .lv-ring { display: none; }
+@keyframes alarm {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 159, 10, 0); }
+  50% { box-shadow: 0 0 0 1.5px rgba(255, 159, 10, 0.6), 0 6px 22px rgba(255, 159, 10, 0.25); }
+}
+
+/* ---------- sound tab ---------- */
+
+.sound-row { justify-content: center; gap: 4px; padding: 0 12px 4px; }
+.snd {
+  --lv: 1;
+  width: 66px;
+  height: 84px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: background-color 0.2s;
+}
+.snd:hover { background: var(--tile); }
+.snd .ring {
+  position: relative;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(rgb(var(--accent)) calc(var(--lv) * 360deg), var(--faint) 0);
+  transition: --lv 0.12s;
+}
+.snd .ring::before { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--bg); }
+.snd .ring .ic { position: relative; width: 28px; height: 28px; border-radius: 8px; }
+.snd .ring .ic.mono { font-size: 13px; }
+.snd .ring .ic.sys { display: grid; place-items: center; color: var(--dim); }
+.snd .ring .ic.sys svg { width: 20px; height: 20px; fill: none; }
+.snd .nm { max-width: 62px; font-size: 9.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snd .pc { font: 600 10px var(--font-display); font-variant-numeric: tabular-nums; color: var(--fg); }
+.snd.muted .pc { color: var(--dim); }
+.snd.muted .ring .ic { opacity: 0.45; }
+.snd.active .nm { color: var(--fg); }
+.source b svg { width: 13px; height: 13px; fill: none; flex: none; }
+.source.tm { align-items: center; max-width: 84px; }
+[data-hdr="device"] .chev { width: 10px; height: 10px; fill: none; display: none; transition: rotate 0.3s var(--spring-open); }
+[data-hdr="device"].multi .chev { display: block; }
+[data-hdr="device"].open .chev { rotate: 180deg; }
+[data-hdr="device"] span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-hdr="battery"] { pointer-events: none; }
+[data-hdr="battery"] .bolt { width: 9px; height: 9px; display: none; color: #30d158; }
+[data-hdr="battery"].charging .bolt { display: block; }
+
+/* ---------- quick tab ---------- */
+
+.quick-row { justify-content: center; gap: 4px; }
+.qt .ic {
+  background: var(--tile);
+  color: var(--dim);
+  border-radius: 50%;
+  transition: background-color 0.25s, color 0.25s, transform 0.3s var(--spring-open);
+}
+.qt .ic svg { width: 19px; height: 19px; fill: none; }
+.qt:hover .ic { background: var(--tile-hover); color: var(--fg); }
+.qt.on .ic { background: var(--fg); color: #000; }
+.qt.busy .ic { opacity: 0.6; }
+.qt.on .nm { color: var(--fg); }
+
+/* ---------- themes ---------- */
+
+/* Graphite: a soft charcoal that still starts pure black at the camera. */
+body[data-theme="graphite"] {
+  --tile: rgba(255, 255, 255, 0.08);
+  --tile-hover: rgba(255, 255, 255, 0.14);
+}
+body[data-theme="graphite"] #island:not([data-state="idle"]):not([data-state="live"]) {
+  background: linear-gradient(180deg, #000 0, #111113 26px, #1c1c1f 100%);
+  box-shadow: inset 0 -0.5px 0 rgba(255, 255, 255, 0.1);
+}
+body[data-theme="graphite"] .snd .ring::before { background: #161618; }
+
+/* Aurora: the album colour glows up from the bottom edge. */
+body[data-theme="aurora"] #island::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(110% 90% at 50% 125%, rgba(var(--accent), 0.34), transparent 62%);
+  box-shadow: inset 0 -1px 0 rgba(var(--accent), 0.35);
+  transition: opacity 0.5s ease;
+}
+body[data-theme="aurora"] #island[data-state="peek"]::after,
+body[data-theme="aurora"] #island[data-state="open"]:not(.glassy)::after { opacity: 1; }
+body[data-theme="aurora"] #island > .layer { z-index: 1; }
+.snd .ring .ic { overflow: hidden; display: grid; place-items: center; }
+.snd .ring .ic img { width: 100%; height: 100%; object-fit: contain; }

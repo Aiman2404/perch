@@ -5,11 +5,9 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 // ---------- config ----------
 
 const WIN_W = 460; // must match tracker.rs
-const HIDE_AFTER_MS = 2500; // retract this long after the cursor leaves
 const HIDE_AFTER_DROP_MS = 1300;
 const DWELL_MS = 140; // hover this long before it peeks (avoids accidental opens)
 const DWELL_FULLSCREEN_MS = 900; // longer hold while a game/video is fullscreen
-const VOLUME_PER_NOTCH = 0.03; // mouse wheel: 3% per notch
 const VOLUME_PER_PX = 0.0006; // touchpad: per pixel of two-finger travel
 const BRIGHT_PER_NOTCH = 5;
 const BRIGHT_PER_PX = 0.08;
@@ -17,9 +15,10 @@ const MAX_QUICK_APPS = 6;
 const REFRESH_AT_REST_MS = 20000; // see setResting()
 const SHELF_PER_PAGE = 6;
 
-type State = "idle" | "peek" | "drop" | "open";
+type State = "idle" | "live" | "peek" | "drop" | "open";
 const SIZE: Record<State, [number, number]> = {
   idle: [132, 6],
+  live: [176, 28],
   peek: [312, 42],
   drop: [300, 54],
   open: [404, 128],
@@ -42,8 +41,19 @@ interface Source { id: string; app: string; title: string; playing: boolean; act
 interface AppView { name: string; target: string; kind: "app" | "url"; icon: string | null }
 interface ShelfItem { id: number; path: string; source: string; name: string; size: number; dir: boolean; copied: boolean; icon: string | null }
 interface Clip { id: number; kind: "text" | "image" | "files"; text: string | null; thumb: string | null; files: string[]; detail: string }
-interface Settings { shelfMode: "link" | "copy"; clipboardSize: number; clipboardPaused: boolean; touchpadInvert: boolean }
-interface Boot { fullscreen: boolean; hovered: boolean; settings: Settings; touchpadNatural: boolean; shelf: ShelfItem[]; clipboard: Clip[] }
+interface Settings {
+  enabled: boolean; theme: "obsidian" | "graphite" | "aurora"; glassPlayer: boolean; retractMs: number;
+  fullscreen: "hold" | "hide" | "normal"; volumeStep: number;
+  shelfMode: "link" | "copy"; clipboardSize: number; clipboardPaused: boolean; touchpadInvert: boolean;
+}
+interface Power { hasBattery: boolean; percent: number; charging: boolean }
+interface Boot {
+  fullscreen: boolean; hovered: boolean; power: Power; timerEnd: number | null; settings: Settings;
+  touchpadNatural: boolean; shelf: ShelfItem[]; clipboard: Clip[];
+}
+interface AppVol { key: string; name: string; level: number; muted: boolean; active: boolean; icon: string | null }
+interface Device { id: string; name: string; default: boolean }
+interface Quick { wifi: boolean | null; bluetooth: boolean | null; micMuted: boolean | null; dark: boolean; power: Power }
 
 // ---------- springs ----------
 
@@ -119,7 +129,13 @@ let hideTimer = 0;
 let resting = false;
 let dirty = false; // has the panel been shown since this page loaded?
 let refreshTimer = 0;
-let settings: Settings = { shelfMode: "link", clipboardSize: 5, clipboardPaused: false, touchpadInvert: false };
+let settings: Settings = {
+  enabled: true, theme: "obsidian", glassPlayer: true, retractMs: 2500, fullscreen: "hold", volumeStep: 3,
+  shelfMode: "link", clipboardSize: 5, clipboardPaused: false, touchpadInvert: false,
+};
+/** Where the island goes when nobody is using it: the bare sliver, or a live activity. */
+const restState = (): State => (liveNow() ? "live" : "idle");
+const atRest = (s: State = state) => s === "idle" || s === "live";
 let touchpadNatural = true;
 
 /** Low-memory mode for the web view while Perch is tucked away. */
@@ -153,11 +169,13 @@ function setState(next: State) {
   reportHitRect();
   if (next === "open") startTicker();
   else stopTicker();
+  if (next === "open") onTabShown();
+  else clearInterval(soundTimer);
   if (prev === "open") closeTransient();
   if (next !== "drop") island.classList.remove("receiving", "dropped");
-  if (next === "idle") {
+  if (atRest(next)) {
     setTimeout(() => {
-      if (state !== "idle") return;
+      if (!atRest()) return;
       setTab(0, true);
       setResting(true);
     }, 600);
@@ -171,16 +189,20 @@ function reportHitRect() {
   const [w, hh] = SIZE[state];
   const hw = state === "idle" ? 210 : w + 2 * 14; // include the ear fillets
   const ht = state === "idle" ? 8 : hh + 6;
+  if (fsHidden()) return invoke("set_hit_rect", { x: 0, y: 0, w: 0, h: 0 });
   invoke("set_hit_rect", { x: (WIN_W - hw) / 2, y: 0, w: hw, h: ht });
 }
 
-function scheduleHide(ms = HIDE_AFTER_MS) {
+function scheduleHide(ms = settings.retractMs) {
   clearTimeout(hideTimer);
   hideTimer = window.setTimeout(() => {
     if (hovered || searching) return;
-    setState("idle");
+    setState(restState());
   }, ms);
 }
+
+/** Fullscreen + "hide" setting: the island gets completely out of the way. */
+const fsHidden = () => fullscreen && settings.fullscreen === "hide";
 
 listen<boolean>("hover", ({ payload }) => {
   hovered = payload;
@@ -189,23 +211,27 @@ listen<boolean>("hover", ({ payload }) => {
     setResting(false);
     volKnown = false;
     briKnown = false;
-    if (state === "idle") {
+    if (atRest() && !fsHidden()) {
       clearTimeout(dwellTimer);
       dwellTimer = window.setTimeout(
-        () => hovered && state === "idle" && setState("peek"),
-        fullscreen ? DWELL_FULLSCREEN_MS : DWELL_MS,
+        () => hovered && atRest() && setState("peek"),
+        fullscreen && settings.fullscreen === "hold" ? DWELL_FULLSCREEN_MS : DWELL_MS,
       );
     }
   } else {
     clearTimeout(dwellTimer);
-    if (state !== "idle") scheduleHide(state === "drop" ? HIDE_AFTER_DROP_MS : HIDE_AFTER_MS);
+    if (!atRest()) scheduleHide(state === "drop" ? HIDE_AFTER_DROP_MS : settings.retractMs);
   }
 });
-listen<boolean>("fullscreen", ({ payload }) => (fullscreen = payload));
+listen<boolean>("fullscreen", ({ payload }) => {
+  fullscreen = payload;
+  applySettings();
+});
 
 // Click anywhere on the peek (or a just-filled drop) that isn't a button -> open the panel.
 island.addEventListener("click", (e) => {
   if ((e.target as Element).closest("button")) return;
+  if (state === "live" && alarm) return stopAlarm();
   if (state === "peek") setState("open");
   else if (state === "drop") {
     setTab(TABS.findIndex(([id]) => id === "shelf"), true);
@@ -246,6 +272,7 @@ function setTab(i: number, instant = false) {
   tab = i;
   renderHeader();
   updateGlass();
+  onTabShown();
 }
 
 /** Each tab gets its own little set of header chips on the right. */
@@ -257,6 +284,8 @@ function renderHeader() {
     if (c.dataset.hdr === "clear-shelf") show = show && shelf.length > 0;
     if (c.dataset.hdr === "clear-clip") show = show && clips.length > 0;
     if (c.dataset.hdr === "edit") show = show && quick.length > 0;
+    if (c.dataset.hdr === "device") show = show && devices.length > 1;
+    if (c.dataset.hdr === "battery") show = show && !!quickState?.power.hasBattery;
     c.classList.toggle("show", show);
   });
   const mode = $('[data-hdr="mode"]');
@@ -269,18 +298,26 @@ function renderHeader() {
   pause.textContent = settings.clipboardPaused ? "Paused" : "Pause";
   pause.classList.toggle("on", settings.clipboardPaused);
   $('[data-hdr="edit"]').textContent = editing ? "Done" : "Edit";
+  const dev = devices.find((d) => d.default);
+  setText("device", dev ? shortDevice(dev.name) : "");
+  $('[data-hdr="device"]').classList.toggle("multi", devices.length > 1);
+  if (quickState) {
+    setText("battery", `${quickState.power.percent}%`);
+    $('[data-hdr="battery"]').classList.toggle("charging", quickState.power.charging);
+  }
 }
 
 /** Close sheets/search/edit mode (on tab change or when the panel closes). */
 function closeTransient() {
   $$(".sheet").forEach((s) => s.classList.remove("show"));
   $(".src").classList.remove("open");
+  $('[data-hdr="device"]').classList.remove("open");
   if (searching) exitSearch();
   if (editing) setEditing(false);
 }
 
 function updateGlass() {
-  island.classList.toggle("glassy", state === "open" && tabId() === "player" && hasArt);
+  island.classList.toggle("glassy", settings.glassPlayer && state === "open" && tabId() === "player" && hasArt);
 }
 
 $(".hdr").addEventListener("click", async (e) => {
@@ -299,13 +336,29 @@ $(".hdr").addEventListener("click", async (e) => {
       return saveSettings({ clipboardPaused: !settings.clipboardPaused });
     case "clear-clip":
       return invoke("clip_clear");
+    case "device":
+      return toggleDevices();
   }
 });
 
 async function saveSettings(patch: Partial<Settings>) {
   settings = await invoke<Settings>("settings_patch", { patch });
+  applySettings();
+}
+
+/** Theme, glass, fullscreen behaviour: everything the Settings window can change live. */
+function applySettings() {
+  document.body.dataset.theme = settings.theme;
+  document.body.classList.toggle("fs-hide", fsHidden());
+  if (fsHidden() && !atRest()) setState(restState());
+  reportHitRect();
+  updateGlass();
   renderHeader();
 }
+listen<Settings>("settings", ({ payload }) => {
+  settings = payload;
+  applySettings();
+});
 
 // ---------- scroll: volume, brightness, tab swipes ----------
 //
@@ -406,9 +459,22 @@ document.addEventListener(
       up = wdy ? wdy / 120 : -dy / 100;
     }
 
-    if (state === "idle") {
+    if (fsHidden()) return;
+    if (atRest()) {
       clearTimeout(dwellTimer);
       setState("peek");
+    }
+
+    // Over an app in the Sound tab: that app's own volume.
+    const card = !brightMode && (e.target as Element).closest<HTMLElement>(".snd");
+    if (card) {
+      const a = soundApps.find((x) => x.key === card.dataset.key);
+      if (!a) return;
+      a.level = Math.min(1, Math.max(0, a.level + (touch ? up * VOLUME_PER_PX : (up * settings.volumeStep) / 100)));
+      a.muted = false;
+      paintSound(card, a);
+      pushAppVolume(a.key, a.level);
+      return;
     }
 
     if (brightMode) {
@@ -436,7 +502,7 @@ document.addEventListener(
       });
       await volLoading;
     }
-    vol = Math.min(1, Math.max(0, vol + (touch ? up * VOLUME_PER_PX : up * VOLUME_PER_NOTCH)));
+    vol = Math.min(1, Math.max(0, vol + (touch ? up * VOLUME_PER_PX : (up * settings.volumeStep) / 100)));
     volMuted = false;
     pushVolume();
     showHud("vol", vol);
@@ -649,7 +715,7 @@ function renderApps() {
     t.addEventListener("click", () => {
       if (editing) return;
       invoke("quick_launch", { target: a.target, kind: a.kind });
-      setTimeout(() => setState("idle"), 180);
+      setTimeout(() => setState(restState()), 180);
     });
     return t;
   });
@@ -871,7 +937,7 @@ getCurrentWebview().onDragDropEvent(({ payload: p }) => {
     requestAnimationFrame(updateMarquees);
   } else if (p.type === "leave") {
     island.classList.remove("receiving");
-    if (!dropDone && state === "drop") setState(hovered ? "peek" : "idle");
+    if (!dropDone && state === "drop") setState(hovered ? "peek" : restState());
   } else if (p.type === "drop") {
     dropDone = true;
     island.classList.remove("receiving");
@@ -936,6 +1002,288 @@ function renderClips() {
   renderHeader();
 }
 
+
+// ---------- sound tab ----------
+
+let soundApps: AppVol[] = [];
+let devices: Device[] = [];
+let soundTimer = 0;
+const soundRow = $(".sound-row");
+const devicesSheet = $(".devices");
+
+/** "Speakers (Realtek(R) Audio)" -> "Speakers" */
+const shortDevice = (n: string) => n.replace(/\s*\(.*\)\s*$/, "") || n;
+
+async function loadSound() {
+  const s = await invoke<{ master: { level: number }; apps: AppVol[]; devices: Device[] }>("sound_state");
+  soundApps = s.apps.slice(0, 5);
+  devices = s.devices;
+  renderSound();
+  renderHeader();
+}
+
+function paintSound(card: HTMLElement, a: AppVol) {
+  const v = a.muted ? 0 : a.level;
+  card.style.setProperty("--lv", String(v));
+  card.querySelector(".pc")!.textContent = `${Math.round(v * 100)}`;
+  card.classList.toggle("muted", a.muted || v === 0);
+}
+
+function renderSound() {
+  soundRow.replaceChildren(
+    ...soundApps.map((a) => {
+      const c = h("div", "snd");
+      c.dataset.key = a.key;
+      c.title = `${a.name}: scroll to change its volume`;
+      const ring = h("span", "ring");
+      ring.append(a.key === "system" ? Object.assign(h("span", "ic sys"), { innerHTML: icon("sound") }) : iconBox(a.icon, a.name));
+      c.append(ring, h("span", "nm", esc(a.name)), h("span", "pc"));
+      c.classList.toggle("active", a.active);
+      paintSound(c, a);
+      return c;
+    }),
+  );
+  $('.tab[data-tab="sound"] .empty-note').classList.toggle("show", soundApps.length === 0);
+}
+
+const appVolPending = new Map<string, number>();
+let appVolBusy = false;
+async function pushAppVolume(key: string, level: number) {
+  appVolPending.set(key, level);
+  if (appVolBusy) return;
+  appVolBusy = true;
+  while (appVolPending.size) {
+    const [k, v] = appVolPending.entries().next().value as [string, number];
+    appVolPending.delete(k);
+    await invoke("app_volume_set", { key: k, level: v });
+  }
+  appVolBusy = false;
+}
+
+function toggleDevices() {
+  const open = !devicesSheet.classList.contains("show");
+  devicesSheet.classList.toggle("show", open);
+  $('[data-hdr="device"]').classList.toggle("open", open);
+  if (!open) return;
+  devicesSheet.replaceChildren(
+    ...devices.slice(0, 3).map((d) => {
+      const b = h("button", "source" + (d.default ? " active" : ""));
+      b.innerHTML = `<b>${icon("speaker")}${esc(shortDevice(d.name))}</b><span>${esc(d.name)}</span>`;
+      b.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await invoke("device_set", { id: d.id });
+        toggleDevices();
+        loadSound();
+      });
+      return b;
+    }),
+  );
+}
+
+// ---------- quick tab ----------
+
+let quickState: Quick | null = null;
+const quickRow = $(".quick-row");
+const timersSheet = $(".timers");
+
+async function loadQuick() {
+  quickState = await invoke<Quick>("quick_state");
+  renderQuick();
+  renderHeader();
+}
+
+function renderQuick() {
+  const q = quickState;
+  const toggle = (id: string, name: string, ic: string, on: boolean | null, flip: () => Promise<unknown>) => {
+    const t = h("button", "tile qt" + (on ? " on" : ""));
+    t.append(h("span", "ic", icon(ic)), h("span", "nm", name));
+    if (on === null) t.disabled = true;
+    t.addEventListener("click", async () => {
+      t.classList.toggle("on");
+      t.classList.add("busy");
+      await flip();
+      await loadQuick();
+    });
+    t.dataset.q = id;
+    return t;
+  };
+  const tiles = [
+    toggle("wifi", "Wi-Fi", "wifi", q?.wifi ?? null, () => invoke("quick_toggle", { which: "wifi", on: !q?.wifi })),
+    toggle("bt", "Bluetooth", "bt", q?.bluetooth ?? null, () => invoke("quick_toggle", { which: "bluetooth", on: !q?.bluetooth })),
+    toggle("mic", q?.micMuted ? "Mic off" : "Mic", q?.micMuted ? "micoff" : "mic", q ? q.micMuted === null ? null : !q.micMuted : null,
+      () => invoke("quick_toggle", { which: "mic", on: !q?.micMuted })),
+    toggle("dark", "Dark mode", "moon", q?.dark ?? false, () => invoke("quick_toggle", { which: "dark", on: !q?.dark })),
+  ];
+  const timer = h("button", "tile qt" + (timerEnd ? " on" : ""));
+  timer.append(h("span", "ic", icon("timer")), h("span", "nm", timerEnd ? fmtLeft() : "Timer"));
+  timer.addEventListener("click", toggleTimers);
+  const gear = h("button", "tile qt");
+  gear.append(h("span", "ic", icon("gear")), h("span", "nm", "Settings"));
+  gear.addEventListener("click", () => {
+    invoke("show_settings");
+    setState(restState());
+  });
+  quickRow.replaceChildren(...tiles, timer, gear);
+}
+
+function toggleTimers() {
+  const open = !timersSheet.classList.contains("show");
+  timersSheet.classList.toggle("show", open);
+  if (!open) return;
+  const opts: [string, number | null][] = timerEnd
+    ? [["Stop timer", null], ["+5 min", -5]]
+    : [["5 min", 300], ["15 min", 900], ["25 min", 1500], ["45 min", 2700]];
+  timersSheet.replaceChildren(
+    ...opts.map(([label, secs]) => {
+      const b = h("button", "source tm");
+      b.innerHTML = `<b>${label}</b>`;
+      b.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        let s = secs;
+        if (s !== null && s < 0) s = Math.round(((timerEnd ?? Date.now()) - Date.now()) / 1000) + 300;
+        timerEnd = await invoke<number | null>("timer_set", { secs: s });
+        timersSheet.classList.remove("show");
+        renderQuick();
+        if (timerEnd) startLive();
+      });
+      return b;
+    }),
+  );
+}
+
+/** Sound + Quick read live system state, so refresh them while they're on screen. */
+function onTabShown() {
+  clearInterval(soundTimer);
+  if (state !== "open") return;
+  const id = tabId();
+  if (id === "sound") {
+    loadSound();
+    soundTimer = window.setInterval(loadSound, 2000);
+  } else if (id === "quick") {
+    loadQuick();
+    soundTimer = window.setInterval(loadQuick, 4000);
+  }
+}
+
+// ---------- live activities ----------
+//
+// A running timer keeps a small pill under the camera with the countdown.
+// Plugging the charger in (or out) blooms the island for a moment.
+
+let timerEnd: number | null = null;
+let liveTimer = 0;
+let flash: { text: string; icon: string; kind: string; until: number } | null = null;
+let alarm = false;
+const liveIcon = $<SVGUseElement>(".lv-ic use");
+
+const liveNow = () => !!timerEnd || alarm || (!!flash && flash.until > Date.now());
+
+function fmtLeft(): string {
+  const left = Math.max(0, Math.round(((timerEnd ?? 0) - Date.now()) / 1000));
+  const m = Math.floor(left / 60);
+  return `${m}:${String(left % 60).padStart(2, "0")}`;
+}
+
+function renderLive() {
+  island.classList.remove("lv-charge", "lv-battery", "lv-alarm", "lv-timer");
+  if (alarm) {
+    liveIcon.setAttribute("href", "#i-timer");
+    setText("liveText", "Time's up");
+    island.classList.add("lv-alarm");
+  } else if (flash && flash.until > Date.now()) {
+    liveIcon.setAttribute("href", `#i-${flash.icon}`);
+    setText("liveText", flash.text);
+    island.classList.add(`lv-${flash.kind}`);
+  } else if (timerEnd) {
+    liveIcon.setAttribute("href", "#i-timer");
+    setText("liveText", fmtLeft());
+    island.classList.add("lv-timer");
+    const total = Math.max(1, timerTotal);
+    island.style.setProperty("--lp", String(Math.max(0, (timerEnd - Date.now()) / 1000) / total));
+  }
+}
+
+let timerTotal = 0;
+function startLive() {
+  if (timerEnd) timerTotal = Math.max(timerTotal, (timerEnd - Date.now()) / 1000);
+  clearInterval(liveTimer);
+  liveTimer = window.setInterval(liveTick, 1000);
+  liveTick();
+}
+
+function liveTick() {
+  if (timerEnd && timerEnd <= Date.now()) {
+    timerEnd = null;
+    timerTotal = 0;
+    invoke("timer_set", { secs: null });
+    startAlarm();
+  }
+  if (!liveNow()) {
+    clearInterval(liveTimer);
+    flash = null;
+    if (state === "live") setState("idle");
+    return;
+  }
+  renderLive();
+  if (state === "idle") setState("live");
+  if (tabId() === "quick" && state === "open") {
+    const t = $(".quick-row .tile:nth-child(5) .nm");
+    if (t) t.textContent = timerEnd ? fmtLeft() : "Timer";
+  }
+}
+
+function chime() {
+  try {
+    const ctx = new AudioContext();
+    [0, 0.22, 0.44].forEach((at, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = [880, 1175, 1568][i];
+      g.gain.setValueAtTime(0, ctx.currentTime + at);
+      g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + at + 0.6);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + at);
+      o.stop(ctx.currentTime + at + 0.65);
+    });
+    setTimeout(() => ctx.close(), 1500);
+  } catch {
+    /* no audio device: the bloom is enough */
+  }
+}
+
+let alarmTimer = 0;
+function startAlarm() {
+  alarm = true;
+  chime();
+  setResting(false);
+  renderLive();
+  if (atRest()) setState("live");
+  alarmTimer = window.setTimeout(stopAlarm, 12000);
+}
+function stopAlarm() {
+  alarm = false;
+  clearTimeout(alarmTimer);
+  liveTick();
+}
+
+listen<number | null>("timer", ({ payload }) => {
+  timerEnd = payload;
+  if (!payload) timerTotal = 0;
+  startLive();
+});
+
+listen<Power>("power", ({ payload }) => {
+  if (quickState) quickState.power = payload;
+  flash = payload.charging
+    ? { text: `Charging · ${payload.percent}%`, icon: "bolt", kind: "charge", until: Date.now() + 3200 }
+    : { text: `On battery · ${payload.percent}%`, icon: "bolt", kind: "battery", until: Date.now() + 2600 };
+  island.style.setProperty("--bp", String(payload.percent / 100));
+  setResting(false);
+  startLive();
+});
+
 // ---------- boot ----------
 
 setTab(0, true);
@@ -945,6 +1293,10 @@ invoke<Boot>("ui_ready").then((b) => {
   fullscreen = b.fullscreen;
   hovered = b.hovered;
   settings = b.settings;
+  timerEnd = b.timerEnd;
+  quickState = { wifi: null, bluetooth: null, micMuted: null, dark: false, power: b.power };
+  applySettings();
+  if (timerEnd) startLive();
   touchpadNatural = b.touchpadNatural;
   shelf = b.shelf;
   clips = b.clipboard;
@@ -956,4 +1308,4 @@ invoke<AppView[]>("quick_apps").then((a) => {
   quick = a;
   renderApps();
 });
-setTimeout(() => state === "idle" && setResting(true), 3000);
+setTimeout(() => atRest() && setResting(true), 3000);

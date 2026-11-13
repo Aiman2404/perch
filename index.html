@@ -28,6 +28,15 @@
       <symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="12" height="15" rx="2.2"/><path d="M9.5 5V4.4c0-.5.4-.9.9-.9h3.2c.5 0 .9.4.9.9V5M9 10h6M9 13.5h6M9 17h3.5"/></symbol>
       <symbol id="i-sound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4c0 .6.4 1 1 1h2.6l4 3.4c.6.5 1.4.1 1.4-.7V6.3c0-.8-.8-1.2-1.4-.7l-4 3.4H5c-.6 0-1 .4-1 1z"/><path d="M16.5 9a4.2 4.2 0 0 1 0 6M18.8 6.6a7.6 7.6 0 0 1 0 10.8"/></symbol>
       <symbol id="i-quick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="3.5"/><rect x="4" y="13" width="7" height="7" rx="3.5"/><rect x="13" y="13" width="7" height="7" rx="2"/></symbol>
+      <symbol id="i-wifi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 9.5a12.5 12.5 0 0 1 17 0M6.5 12.8a8 8 0 0 1 11 0M9.5 16a3.6 3.6 0 0 1 5 0"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-bt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7.5l10 9-5 4.5V3l5 4.5-10 9"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V20.5"/></symbol>
+      <symbol id="i-micoff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 10V6.5a3 3 0 0 0-5.6-1.5M9 9.5v2a3 3 0 0 0 4.6 2.5M6 11.5a6 6 0 0 0 9.6 4.8M18 11.5c0 .6-.1 1.2-.3 1.8M12 17.5v3M4 4l16 16"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/></symbol>
+      <symbol id="i-timer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13.5" r="7"/><path d="M12 13.5V10M10 3.5h4M18 7l1.2-1.2"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M10.3 3.6h3.4l.5 2.3 1.6.9 2.2-.8 1.7 2.9-1.7 1.6v1.9l1.7 1.6-1.7 2.9-2.2-.8-1.6.9-.5 2.3h-3.4l-.5-2.3-1.6-.9-2.2.8-1.7-2.9 1.7-1.6v-1.9L4.3 8.9 6 6l2.2.8 1.6-.9z"/><circle cx="12" cy="12" r="2.6"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 2.8L5.6 13.1c-.3.4 0 1 .5 1h4.6l-1.1 7.1c-.1.6.7.9 1 .4l7.6-10.3c.3-.4 0-1-.5-1h-4.6l1.1-7.1c.1-.6-.7-.9-1-.4z"/></symbol>
+      <symbol id="i-speaker" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2.5"/><circle cx="12" cy="14.5" r="3.2"/><circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none"/></symbol>
     </svg>
 
     <div id="island" data-state="idle">
@@ -56,6 +65,13 @@
         </div>
       </section>
 
+      <!-- Live: a running timer or the charger, shown while Perch is otherwise tucked away. -->
+      <section class="layer lv">
+        <svg class="lv-ic"><use href="#i-timer" /></svg>
+        <span class="lv-txt" data-bind="liveText"></span>
+        <i class="lv-ring"></i>
+      </section>
+
       <!-- Panel: click state. Lines at the top switch tabs. -->
       <section class="layer panel">
         <div class="glass"><img alt="" draggable="false" /></div>
@@ -69,6 +85,8 @@
             <button class="chip" data-for="shelf" data-hdr="clear-shelf">Clear</button>
             <button class="chip" data-for="clipboard" data-hdr="pause">Pause</button>
             <button class="chip" data-for="clipboard" data-hdr="clear-clip">Clear</button>
+            <button class="chip" data-for="sound" data-hdr="device"><span data-bind="device"></span><svg class="chev"><use href="#i-chev" /></svg></button>
+            <button class="chip" data-for="quick" data-hdr="battery"><svg class="bolt"><use href="#i-bolt" /></svg><span data-bind="battery"></span></button>
           </div>
         </header>
         <div class="stage">
@@ -120,17 +138,17 @@
           </div>
 
           <div class="tab" data-tab="sound">
-            <div class="empty-note show">
+            <div class="row sound-row"></div>
+            <div class="empty-note">
               <svg><use href="#i-sound" /></svg>
-              <div><b>Sound</b><p>Volume per app and output devices. Coming next.</p></div>
+              <div><b>Nothing is playing sound</b><p>Apps show up here while they make noise.</p></div>
             </div>
+            <div class="sheet devices"></div>
           </div>
 
           <div class="tab" data-tab="quick">
-            <div class="empty-note show">
-              <svg><use href="#i-quick" /></svg>
-              <div><b>Quick</b><p>Wi-Fi, Bluetooth, focus and a timer. Coming next.</p></div>
-            </div>
+            <div class="row quick-row"></div>
+            <div class="sheet timers"></div>
           </div>
         </div>
       </section>
