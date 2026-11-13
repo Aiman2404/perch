@@ -31,6 +31,13 @@ pub struct Shared {
     pub hit: Mutex<Rect>,
     pub fullscreen: AtomicBool,
     pub hovered: AtomicBool,
+    pub enabled: AtomicBool,
+}
+
+impl Shared {
+    pub fn new(enabled: bool) -> Self {
+        Self { enabled: AtomicBool::new(enabled), ..Default::default() }
+    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -66,8 +73,21 @@ pub fn spawn(win: WebviewWindow, shared: std::sync::Arc<Shared>) {
         let mut geom: Option<Geom> = None;
         let mut inside = false;
         let mut tick: u32 = 0;
+        let mut charging = crate::system::power().charging;
 
         loop {
+            // Switched off from Settings or the tray: stay hidden and nearly idle.
+            if !shared.enabled.load(Ordering::Relaxed) {
+                if inside {
+                    inside = false;
+                    shared.hovered.store(false, Ordering::Relaxed);
+                    let _ = win.set_ignore_cursor_events(true);
+                    let _ = win.emit("hover", false);
+                }
+                thread::sleep(Duration::from_millis(250));
+                continue;
+            }
+
             // Re-check monitor layout + fullscreen state every ~2s.
             if tick % 60 == 0 {
                 let g = geometry(&win);
@@ -75,7 +95,7 @@ pub fn spawn(win: WebviewWindow, shared: std::sync::Arc<Shared>) {
                     let n = g.unwrap();
                     let _ = win.set_size(PhysicalSize::new(n.w, n.h));
                     let _ = win.set_position(PhysicalPosition::new(n.x, n.y));
-                    if geom.is_none() {
+                    if geom.is_none() && shared.enabled.load(Ordering::Relaxed) {
                         let _ = win.show();
                     }
                     geom = g;
@@ -83,6 +103,12 @@ pub fn spawn(win: WebviewWindow, shared: std::sync::Arc<Shared>) {
                 let fs = is_fullscreen();
                 if shared.fullscreen.swap(fs, Ordering::Relaxed) != fs {
                     let _ = win.emit("fullscreen", fs);
+                }
+                // Plugging the charger in or out is a live activity on the island.
+                let p = crate::system::power();
+                if p.has_battery && p.charging != charging {
+                    charging = p.charging;
+                    let _ = win.emit("power", &p);
                 }
             }
             tick = tick.wrapping_add(1);

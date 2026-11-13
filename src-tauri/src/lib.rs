@@ -5,6 +5,7 @@ mod media;
 mod settings;
 mod shelf;
 mod shell;
+mod system;
 mod tracker;
 
 use serde::Serialize;
@@ -13,9 +14,9 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 type Shelf = Arc<shelf::Shelf>;
 type History = Arc<clipboard::History>;
@@ -34,6 +35,9 @@ fn set_hit_rect(shared: State<Arc<tracker::Shared>>, x: f64, y: f64, w: f64, h: 
 struct Boot {
     fullscreen: bool,
     hovered: bool,
+    power: system::Power,
+    /// Unix ms when the running timer ends, if any.
+    timer_end: Option<i64>,
     settings: settings::Settings,
     /// Windows' default touchpad setting: fingers up scrolls content down.
     touchpad_natural: bool,
@@ -54,6 +58,8 @@ fn ui_ready(
     Boot {
         fullscreen: shared.fullscreen.load(Ordering::Relaxed),
         hovered: shared.hovered.load(Ordering::Relaxed),
+        power: system::power(),
+        timer_end: *TIMER.lock().unwrap(),
         settings: store.get(),
         touchpad_natural: touchpad_natural(),
         shelf: shelf.list(),
@@ -102,6 +108,32 @@ fn set_resting(win: WebviewWindow, resting: bool) {
     });
 }
 
+/// If WebView2's page process dies (out of memory, a driver hiccup), reload instead of
+/// leaving "This page is having a problem" stuck across the top of the screen.
+/// If the whole browser process is gone, restart Perch.
+fn recover_on_crash(win: &WebviewWindow) {
+    let app = win.app_handle().clone();
+    let _ = win.with_webview(move |wv| unsafe {
+        use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+        use webview2_com::ProcessFailedEventHandler;
+        let Ok(core) = wv.controller().CoreWebView2() else { return };
+        let handler = ProcessFailedEventHandler::create(Box::new(move |sender, args| {
+            let browser_gone = args.is_some_and(|a| {
+                let mut kind = Default::default();
+                a.ProcessFailedKind(&mut kind).is_ok() && kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED
+            });
+            if browser_gone {
+                app.restart();
+            } else if let Some(s) = sender {
+                let _ = s.Reload();
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let _ = core.add_ProcessFailed(&handler, &mut token);
+    });
+}
+
 /// The island never takes focus, except while you type in the app search.
 #[tauri::command]
 fn set_typing(win: WebviewWindow, on: bool) {
@@ -114,7 +146,18 @@ fn set_typing(win: WebviewWindow, on: bool) {
 // ---------- settings ----------
 
 #[tauri::command]
-fn settings_patch(store: State<Store>, hist: State<History>, patch: Value) -> settings::Settings {
+fn settings_get(store: State<Store>) -> settings::Settings {
+    store.get()
+}
+
+#[tauri::command]
+fn settings_patch(
+    app: AppHandle,
+    store: State<Store>,
+    hist: State<History>,
+    shared: State<Arc<tracker::Shared>>,
+    patch: Value,
+) -> settings::Settings {
     let s = store.update(|s| {
         let mut v = serde_json::to_value(&*s).unwrap_or(Value::Null);
         if let (Some(obj), Some(p)) = (v.as_object_mut(), patch.as_object()) {
@@ -127,7 +170,92 @@ fn settings_patch(store: State<Store>, hist: State<History>, patch: Value) -> se
         }
     });
     hist.trim(s.clipboard_size);
+    apply_enabled(&app, &shared, s.enabled);
+    // Both windows listen, so a change in one shows up in the other immediately.
+    let _ = app.emit("settings", &s);
     s
+}
+
+/// The master switch: hide the island and stop tracking, or bring it back.
+fn apply_enabled(app: &AppHandle, shared: &tracker::Shared, on: bool) {
+    shared.enabled.store(on, Ordering::Relaxed);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = if on { w.show() } else { w.hide() };
+    }
+    if let Some(item) = app.try_state::<ToggleItem>() {
+        let _ = item.0.set_text(if on { "Turn Perch off" } else { "Turn Perch on" });
+    }
+}
+
+fn set_enabled(app: &AppHandle, on: bool) {
+    let s = app.state::<Store>().update(|s| s.enabled = on);
+    apply_enabled(app, &app.state::<Arc<tracker::Shared>>(), on);
+    let _ = app.emit("settings", &s);
+}
+
+struct ToggleItem(MenuItem<tauri::Wry>);
+
+// ---------- the Perch window ----------
+
+/// Opened from the tray, the Start menu, or by launching Perch while it's already running.
+fn open_settings(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    // Every window must share one WebView2 environment, so reuse the island's browser arguments.
+    let args = app
+        .config()
+        .app
+        .windows
+        .first()
+        .and_then(|w| w.additional_browser_args.clone())
+        .unwrap_or_default();
+    let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+        .title("Perch")
+        .inner_size(780.0, 540.0)
+        .min_inner_size(680.0, 460.0)
+        .decorations(false)
+        .shadow(true)
+        .background_color(tauri::window::Color(14, 14, 16, 255))
+        .center()
+        .additional_browser_args(&args)
+        .build();
+}
+
+#[tauri::command]
+fn show_settings(app: AppHandle) {
+    open_settings(&app);
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Status {
+    version: String,
+    memory_mb: f64,
+    autostart: bool,
+}
+
+#[tauri::command]
+async fn status(app: AppHandle) -> Status {
+    Status {
+        version: app.package_info().version.to_string(),
+        memory_mb: system::memory_mb(),
+        autostart: system::autostart(),
+    }
+}
+
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    shelf::clean_temp();
+    app.exit(0);
+}
+
+#[tauri::command]
+fn autostart_set(on: bool) -> bool {
+    system::set_autostart(on)
 }
 
 // ---------- media ----------
@@ -169,6 +297,80 @@ async fn brightness_get() -> Option<u8> {
 #[tauri::command]
 fn brightness_set(level: u8) {
     brightness::set(level);
+}
+
+// ---------- sound ----------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Sound {
+    master: audio::Volume,
+    apps: Vec<audio::AppVolume>,
+    devices: Vec<audio::Device>,
+}
+
+#[tauri::command]
+async fn sound_state() -> Sound {
+    Sound { master: audio::get(), apps: audio::apps(), devices: audio::devices() }
+}
+
+#[tauri::command]
+async fn app_volume_set(key: String, level: f32) {
+    audio::set_app(&key, level);
+}
+
+#[tauri::command]
+async fn device_set(id: String) -> bool {
+    audio::set_default_device(&id)
+}
+
+// ---------- quick ----------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Quick {
+    wifi: Option<bool>,
+    bluetooth: Option<bool>,
+    mic_muted: Option<bool>,
+    dark: bool,
+    power: system::Power,
+}
+
+#[tauri::command]
+async fn quick_state() -> Quick {
+    let r = system::radios();
+    Quick {
+        wifi: r.wifi,
+        bluetooth: r.bluetooth,
+        mic_muted: audio::mic_muted(),
+        dark: system::dark_mode(),
+        power: system::power(),
+    }
+}
+
+#[tauri::command]
+async fn quick_toggle(which: String, on: bool) -> bool {
+    match which.as_str() {
+        "wifi" | "bluetooth" => system::set_radio(&which, on),
+        "mic" => audio::set_mic_muted(on) == Some(on),
+        "dark" => system::set_dark_mode(on),
+        _ => false,
+    }
+}
+
+static TIMER: Mutex<Option<i64>> = Mutex::new(None);
+
+/// Start (secs) or cancel (None) the timer. Lives in Rust so it survives page refreshes.
+#[tauri::command]
+fn timer_set(app: AppHandle, secs: Option<u32>) -> Option<i64> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let end = secs.map(|s| now + s as i64 * 1000);
+    *TIMER.lock().unwrap() = end;
+    let _ = app.emit("timer", end);
+    end
 }
 
 // ---------- apps ----------
@@ -384,34 +586,66 @@ fn clip_clear(app: AppHandle, hist: State<History>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Launching Perch while it's running opens its window instead of a second island.
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| open_settings(app)))
         .setup(|app| {
             shelf::clean_temp();
             let dir = app.path().app_config_dir().unwrap_or_else(|_| std::env::temp_dir().join("Perch"));
             let _ = ICON_DIR.set(dir.join("icons"));
             let store: Store = Arc::new(settings::Store::load(dir));
-            let shared = Arc::new(tracker::Shared::default());
+            let enabled = store.get().enabled;
+            let shared = Arc::new(tracker::Shared::new(enabled));
             app.manage(shared.clone());
             app.manage(media::spawn(app.handle().clone()));
             app.manage(clipboard::spawn(app.handle().clone(), store.clone()));
             app.manage::<Shelf>(Arc::new(shelf::Shelf::default()));
             app.manage(store);
 
+            let open = MenuItem::with_id(app, "open", "Open Perch", true, None::<&str>)?;
+            let label = if enabled { "Turn Perch off" } else { "Turn Perch on" };
+            let toggle = MenuItem::with_id(app, "toggle", label, true, None::<&str>)?;
+            let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Perch", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&quit])?;
+            let menu = Menu::with_items(app, &[&open, &toggle, &sep, &quit])?;
+            app.manage(ToggleItem(toggle));
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Perch")
                 .menu(&menu)
-                .on_menu_event(|app, e| {
-                    if e.id.as_ref() == "quit" {
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, e| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = e
+                    {
+                        open_settings(tray.app_handle());
+                    }
+                })
+                .on_menu_event(|app, e| match e.id.as_ref() {
+                    "open" => open_settings(app),
+                    "toggle" => {
+                        let on = !app.state::<Store>().get().enabled;
+                        set_enabled(app, on);
+                    }
+                    "quit" => {
                         shelf::clean_temp();
                         app.exit(0);
                     }
+                    _ => {}
                 })
                 .build(app)?;
 
             let win = app.get_webview_window("main").unwrap();
+            recover_on_crash(&win);
+            if !enabled {
+                let _ = win.hide();
+            }
             tracker::spawn(win, shared);
+            if std::env::args().any(|a| a == "--settings") {
+                open_settings(app.handle());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -419,7 +653,18 @@ pub fn run() {
             ui_ready,
             set_resting,
             set_typing,
+            settings_get,
             settings_patch,
+            show_settings,
+            status,
+            autostart_set,
+            quit_app,
+            sound_state,
+            app_volume_set,
+            device_set,
+            quick_state,
+            quick_toggle,
+            timer_set,
             media_cmd,
             media_select,
             volume_get,
