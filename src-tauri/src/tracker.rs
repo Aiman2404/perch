@@ -72,6 +72,7 @@ pub fn spawn(win: WebviewWindow, shared: std::sync::Arc<Shared>) {
         let _ = win.set_ignore_cursor_events(true);
         let mut geom: Option<Geom> = None;
         let mut inside = false;
+        let mut near = false;
         let mut tick: u32 = 0;
         let mut charging = crate::system::power().charging;
 
@@ -125,6 +126,13 @@ pub fn spawn(win: WebviewWindow, shared: std::sync::Arc<Shared>) {
                         shared.hovered.store(now, Ordering::Relaxed);
                         let _ = win.set_ignore_cursor_events(!now);
                         let _ = win.emit("hover", now);
+                    }
+                    // A wider zone around the island: the cursor is heading there, so let the
+                    // UI wake up (and page itself back in) before it actually has to open.
+                    let n = lx >= -140.0 && lx <= WIN_W + 140.0 && ly <= 150.0;
+                    if n != near {
+                        near = n;
+                        let _ = win.emit("near", n);
                     }
                 }
             }

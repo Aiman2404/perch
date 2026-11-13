@@ -1,6 +1,6 @@
 <div align="center">
 
-# Perch
+<img src="assets/banner.png" alt="Perch: a tiny media island under your webcam" width="820">
 
 **A tiny media island that lives under your webcam on Windows 11.**
 
@@ -8,7 +8,7 @@ Push your cursor to the top-center of the screen and Perch drops down: what's pl
 and volume on the scroll wheel. Click it and it opens into a small tabbed panel. Leave it alone and it tucks
 itself back up under the camera.
 
-`1.4 MB installer` · `~76 MB RAM at rest` · `~0% CPU at rest` · `no player of its own: it controls whatever Windows is playing`
+`2 MB installer` · `~80 MB RAM at rest` · `updates itself` · `~0% CPU at rest` · `no player of its own: it controls whatever Windows is playing`
 
 <br>
 
@@ -103,9 +103,10 @@ start something else.
 - [x] **Live activities**: timer countdown, charger
 - [x] **The Perch window**: on/off, start with Windows, themes, a section for every tab
 - [x] Single instance, recovers by itself if the web view crashes
+- [x] Installer and automatic, signed updates
 - [ ] **Lyrics**: time-synced lyrics via [LRCLIB](https://lrclib.net) when available
 - [ ] Mic/camera-in-use dot right next to the actual camera
-- [ ] Installer
+- [ ] Lighter resting mode (native pill while tucked away)
 
 ## Why it's light
 

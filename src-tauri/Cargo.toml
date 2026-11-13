@@ -1,6 +1,6 @@
 [package]
 name = "perch"
-version = "0.1.0"
+version = "0.2.0"
 description = "A tiny, beautiful media island that lives under your webcam on Windows 11"
 authors = ["Aiman2404"]
 edition = "2024"
@@ -24,6 +24,7 @@ clipboard-win = { version = "5", features = ["monitor"] }
 image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
 tauri-plugin-single-instance = "2"
 windows-core = "0.62"
+tauri-plugin-updater = "2"
 
 [dependencies.windows]
 version = "0.62"

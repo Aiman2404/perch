@@ -337,8 +337,8 @@ h1 { margin: 0; font: 600 20px var(--font-display); letter-spacing: -0.01em; }
 .pv i::before, .pv i::after { content: ""; position: absolute; border-radius: 2px; background: rgba(255, 255, 255, 0.85); }
 .pv i::before { left: 10px; top: 9px; width: 16px; height: 16px; border-radius: 4px; background: linear-gradient(135deg, #f59e0b, #d9466f); }
 .pv i::after { left: 32px; top: 12px; width: 38%; height: 4px; box-shadow: 0 7px 0 -0.5px rgba(255, 255, 255, 0.35); }
-[data-theme="graphite"] .pv i { background: linear-gradient(180deg, #000 0, #141416 40%, #232327); }
-[data-theme="aurora"] .pv i { background: radial-gradient(110% 90% at 50% 130%, rgba(232, 107, 82, 0.6), #000 62%); }
+.theme[data-theme="graphite"] .pv i { background: linear-gradient(180deg, #000 0, #141416 40%, #232327); }
+.theme[data-theme="aurora"] .pv i { background: radial-gradient(110% 90% at 50% 130%, rgba(232, 107, 82, 0.6), #000 62%); }
 
 /* ---------- lists ---------- */
 
@@ -384,3 +384,15 @@ h1 { margin: 0; font: 600 20px var(--font-display); letter-spacing: -0.01em; }
 .dev i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint); flex: none; transition: box-shadow 0.25s var(--spring); }
 .dev.on i { box-shadow: inset 0 0 0 4.5px var(--fg); }
 .dev.on span { font-weight: 600; }
+
+.btn.primary { background: var(--fg); color: #000; }
+.btn.primary:hover { background: #fff; }
+.row.upd.ready b::after {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: #30d158;
+  vertical-align: middle;
+}

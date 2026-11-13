@@ -123,6 +123,61 @@ async function poll() {
   auto.checked = st.autostart;
 }
 
+// ---------- updates ----------
+
+interface Upd { current: string; available: string | null; checking: boolean; error: string | null }
+const updBtn = $("[data-upd]");
+let upd: Upd | null = null;
+let installing = false;
+
+function renderUpd() {
+  if (!upd) return;
+  const row = $(".row.upd");
+  row.classList.toggle("ready", !!upd.available);
+  if (installing) {
+    setText("updText", `Installing ${upd.available}… Perch will restart by itself.`);
+    updBtn.textContent = "Installing";
+  } else if (upd.checking) {
+    setText("updText", "Checking GitHub for a newer version…");
+    updBtn.textContent = "Checking";
+  } else if (upd.available) {
+    setText("updText", `Perch ${upd.available} is ready. You have ${upd.current}.`);
+    updBtn.textContent = "Install and restart";
+  } else if (upd.error) {
+    setText("updText", "Couldn't reach GitHub. Perch will try again later.");
+    updBtn.textContent = "Try again";
+  } else {
+    setText("updText", `You have the latest version (${upd.current}). Perch checks every few hours.`);
+    updBtn.textContent = "Check now";
+  }
+  updBtn.classList.toggle("primary", !!upd.available && !installing);
+}
+
+updBtn.addEventListener("click", async () => {
+  if (!upd || upd.checking || installing) return;
+  if (upd.available) {
+    installing = true;
+    renderUpd();
+    try {
+      await invoke("update_install");
+    } catch {
+      installing = false;
+      setText("updText", "The update didn't install. Try again in a moment.");
+    }
+    return;
+  }
+  upd = await invoke<Upd>("update_check");
+  renderUpd();
+});
+listen<Upd>("update", ({ payload }) => {
+  upd = payload;
+  renderUpd();
+});
+invoke<Upd>("update_status").then((u) => {
+  upd = u;
+  renderUpd();
+});
+
 // ---------- apps ----------
 
 let apps: AppView[] = [];
