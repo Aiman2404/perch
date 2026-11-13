@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas chat
+    url: https://github.com/idlebench/perch/discussions
+    about: Ask how something works or share what you'd like to see.
+  - name: Security problem
+    url: https://github.com/idlebench/perch/security/advisories/new
+    about: Report it privately, not as a public issue.

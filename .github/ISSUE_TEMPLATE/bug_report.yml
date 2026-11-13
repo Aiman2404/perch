@@ -1,0 +1,39 @@
+name: Bug report
+description: Something doesn't work or looks wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. A screenshot or short clip helps a lot.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Perch version
+      description: Perch window → General
+      placeholder: "0.2.2"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows build
+      description: Run `winver`
+      placeholder: "Windows 11 24H2 (26100.2314)"
+    validations:
+      required: true
+  - type: input
+    id: display
+    attributes:
+      label: Screen and scaling
+      description: Settings → System → Display. Mention external monitors too.
+      placeholder: "1920×1080 laptop at 125%"
+  - type: input
+    id: player
+    attributes:
+      label: Media app
+      description: If it's about now playing, which app was playing?
+      placeholder: "Spotify, YouTube in Chrome, ..."
