@@ -4,9 +4,10 @@
 
 use base64::Engine;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 use windows::Foundation::TypedEventHandler;
 use windows::Media::Control::{
@@ -29,6 +30,18 @@ pub enum Msg {
     Changed,
     Refresh,
     Cmd(Cmd),
+    /// User picked a source (by AppUserModelID) in the panel.
+    Select(String),
+}
+
+#[derive(Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct Source {
+    id: String,
+    app: String,
+    title: String,
+    playing: bool,
+    active: bool,
 }
 
 pub struct Handle(Sender<Msg>);
@@ -104,37 +117,113 @@ pub fn spawn(app: AppHandle) -> Handle {
             }
         }));
 
-        let mut hooks: Option<Hooks> = None;
+        // Every session is hooked so any app starting/stopping is noticed instantly.
+        let mut hooks: Vec<(String, Hooks)> = Vec::new();
         let mut last = MediaState::default();
         let mut last_key = String::new();
+        let mut last_sources: Vec<Source> = Vec::new();
+        let mut chosen: Option<String> = None;
+        let mut pinned: Option<String> = None;
+        let mut was_playing: HashMap<String, bool> = HashMap::new();
+        let mut started_at: HashMap<String, Instant> = HashMap::new();
 
         loop {
             let mut force = false;
-            match rx.recv_timeout(Duration::from_secs(2)) {
-                Ok(Msg::Cmd(c)) => {
-                    if let Some(h) = &hooks {
-                        run_cmd(&h.session, c);
-                    }
+            let mut cmd = None;
+            match rx.recv_timeout(Duration::from_secs(3)) {
+                Ok(Msg::Cmd(c)) => cmd = Some(c),
+                Ok(Msg::Select(id)) => {
+                    pinned = Some(id);
+                    force = true;
                 }
                 Ok(Msg::Refresh) => force = true,
                 Ok(Msg::Changed) | Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => return,
             }
 
-            let session = pick_session(&mgr);
-            let same = match (&hooks, &session) {
-                (Some(h), Some(s)) => h.session == *s,
-                (None, None) => true,
-                _ => false,
-            };
-            if !same {
-                hooks = session.as_ref().and_then(|s| attach(s, &tx).ok());
+            let sessions: Vec<(String, Session)> = mgr
+                .GetSessions()
+                .map(|l| {
+                    l.into_iter()
+                        .filter_map(|s| Some((s.SourceAppUserModelId().ok()?.to_string(), s)))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let ids: Vec<String> = sessions.iter().map(|(id, _)| id.clone()).collect();
+
+            // (Re)hook when the set of sessions changes.
+            if ids.iter().ne(hooks.iter().map(|(id, _)| id)) {
+                hooks = sessions
+                    .iter()
+                    .filter_map(|(id, s)| Some((id.clone(), attach(s, &tx).ok()?)))
+                    .collect();
+            }
+
+            // Track when each one last *started* playing.
+            for (id, s) in &sessions {
+                let playing = is_playing(s);
+                if playing && !was_playing.get(id).copied().unwrap_or(false) {
+                    started_at.insert(id.clone(), Instant::now());
+                    // Starting something else overrides an earlier manual pick.
+                    if pinned.as_ref().is_some_and(|p| p != id) {
+                        pinned = None;
+                    }
+                }
+                was_playing.insert(id.clone(), playing);
+            }
+            was_playing.retain(|id, _| ids.contains(id));
+            if pinned.as_ref().is_some_and(|p| !ids.contains(p)) {
+                pinned = None;
+            }
+
+            let pick = pinned
+                .clone()
+                .or_else(|| {
+                    sessions
+                        .iter()
+                        .filter(|(_, s)| is_playing(s))
+                        .max_by_key(|(id, _)| started_at.get(id).copied())
+                        .map(|(id, _)| id.clone())
+                })
+                .or_else(|| chosen.clone().filter(|c| ids.contains(c)))
+                .or_else(|| {
+                    mgr.GetCurrentSession()
+                        .ok()
+                        .and_then(|s| s.SourceAppUserModelId().ok())
+                        .map(|h| h.to_string())
+                })
+                .or_else(|| ids.first().cloned());
+            chosen = pick.clone();
+            let session = pick.and_then(|p| sessions.iter().find(|(id, _)| *id == p).map(|(_, s)| s.clone()));
+
+            if let (Some(c), Some(s)) = (cmd, &session) {
+                run_cmd(s, c);
             }
 
             let (state, thumb) = match &session {
                 Some(s) => read_state(s).unwrap_or_default(),
                 None => (MediaState::default(), None),
             };
+
+            let sources: Vec<Source> = sessions
+                .iter()
+                .map(|(id, s)| Source {
+                    id: id.clone(),
+                    app: friendly_app(id),
+                    title: s
+                        .TryGetMediaPropertiesAsync()
+                        .and_then(|o| o.join())
+                        .and_then(|p| p.Title())
+                        .map(|t| t.to_string())
+                        .unwrap_or_default(),
+                    playing: is_playing(s),
+                    active: chosen.as_ref() == Some(id),
+                })
+                .collect();
+            if force || sources != last_sources {
+                let _ = app.emit("media-sources", &sources);
+                last_sources = sources;
+            }
 
             // Art is sent separately and only when the track (or its art) changes.
             let key = format!("{}\u{1}{}\u{1}{}", state.title, state.artist, thumb.is_some());
@@ -153,21 +242,11 @@ pub fn spawn(app: AppHandle) -> Handle {
     handle
 }
 
-/// Prefer a session that's actually playing; fall back to Windows' "current" one.
-fn pick_session(mgr: &Manager) -> Option<Session> {
-    if let Ok(list) = mgr.GetSessions() {
-        for s in list {
-            let playing = s
-                .GetPlaybackInfo()
-                .and_then(|i| i.PlaybackStatus())
-                .map(|st| st == Status::Playing)
-                .unwrap_or(false);
-            if playing {
-                return Some(s);
-            }
-        }
-    }
-    mgr.GetCurrentSession().ok()
+fn is_playing(s: &Session) -> bool {
+    s.GetPlaybackInfo()
+        .and_then(|i| i.PlaybackStatus())
+        .map(|st| st == Status::Playing)
+        .unwrap_or(false)
 }
 
 fn attach(s: &Session, tx: &Sender<Msg>) -> Result<Hooks> {
