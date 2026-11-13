@@ -31,7 +31,7 @@
         "focusable": false,
         "visible": false,
         "dragDropEnabled": true,
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate,OptimizationHints,MediaRouter,AutofillServerCommunication,SpareRendererForSitePerProcess,CalculateNativeWinOcclusion --enable-features=NetworkServiceInProcess2 --disable-gpu --disable-gpu-compositing --in-process-gpu --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --disable-sync --no-first-run --disable-breakpad --js-flags=--max-old-space-size=24 --max-semi-space-size=1"
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate,OptimizationHints,MediaRouter,AutofillServerCommunication,SpareRendererForSitePerProcess,CalculateNativeWinOcclusion --enable-features=NetworkServiceInProcess2 --disable-gpu --disable-gpu-compositing --in-process-gpu --renderer-process-limit=1 --disable-extensions --disable-background-networking --disable-component-update --disable-sync --no-first-run --disable-breakpad --num-raster-threads=1 --disk-cache-size=1 --js-flags=--jitless --max-lazy --max-old-space-size=16 --max-semi-space-size=1"
       }
     ],
     "security": {
