@@ -1,6 +1,6 @@
 [package]
 name = "perch"
-version = "0.2.0"
+version = "0.2.1"
 description = "A tiny, beautiful media island that lives under your webcam on Windows 11"
 authors = ["Aiman2404"]
 edition = "2024"
@@ -41,13 +41,16 @@ features = [
   "Win32_Media_Audio_Endpoints",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Memory",
   "Win32_System_Power",
   "Win32_System_ProcessStatus",
   "Win32_System_Threading",
   "Win32_System_Ole",
   "Win32_System_Registry",
   "Win32_System_Rpc",
+  "Win32_System_SystemServices",
   "Win32_System_Variant",
   "Win32_System_Wmi",
   "Win32_UI_Shell",

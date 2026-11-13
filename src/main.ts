@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 // ---------- config ----------
 
@@ -45,7 +44,7 @@ interface AppView { name: string; target: string; kind: "app" | "url"; icon: str
 interface ShelfItem { id: number; path: string; source: string; name: string; size: number; dir: boolean; copied: boolean; icon: string | null }
 interface Clip { id: number; kind: "text" | "image" | "files"; text: string | null; thumb: string | null; files: string[]; detail: string }
 interface Settings {
-  enabled: boolean; theme: "obsidian" | "graphite" | "aurora"; glassPlayer: boolean; retractMs: number;
+  enabled: boolean; theme: "obsidian" | "graphite" | "aurora" | "glass"; glassPlayer: boolean; retractMs: number;
   fullscreen: "hold" | "hide" | "normal"; volumeStep: number;
   shelfMode: "link" | "copy"; clipboardSize: number; clipboardPaused: boolean; touchpadInvert: boolean;
 }
@@ -603,10 +602,15 @@ listen<Media>("media", ({ payload }) => {
 
 // cover art (+ accent colour pulled from it) also feeds the glass backdrop
 const artBoxes = $$(".art");
-const artImgs = [...$$<HTMLImageElement>(".art img"), $<HTMLImageElement>(".glass img")];
+const artImgs = [
+  ...$$<HTMLImageElement>(".art img"),
+  $<HTMLImageElement>(".glass img"),
+  $<HTMLImageElement>(".frost img"),
+];
 listen<string | null>("media-art", ({ payload }) => {
   hasArt = !!payload;
   artBoxes.forEach((a) => a.classList.toggle("has", hasArt));
+  island.classList.toggle("has-art", hasArt);
   updateGlass();
   if (!payload) {
     root.setProperty("--accent", "245, 245, 247");
@@ -949,34 +953,33 @@ actionsSheet.addEventListener("click", (e) => {
   if (e.target === actionsSheet) actionsSheet.classList.remove("show");
 });
 
-// Files dragged onto the island land on the shelf.
+// Files dragged onto the island land on the shelf. Rust does the receiving (see dropper.rs), so
+// pictures from browsers, chat apps and Photos work too, not only files from Explorer.
 let dropDone = false;
-getCurrentWebview().onDragDropEvent(({ payload: p }) => {
+listen<{ count: number; name: string }>("drop-enter", ({ payload: p }) => {
   if (draggingOut) return; // our own tile being dragged out
-  if (p.type === "enter") {
-    dropDone = false;
-    clearTimeout(dwellTimer);
-    clearTimeout(hideTimer);
-    const n = p.paths.length;
-    setText("dropTitle", "Drop to keep on Shelf");
-    setText("dropSub", n > 1 ? `${n} items` : p.paths[0]?.split(/[\\/]/).pop() ?? "");
-    setState("drop");
-    island.classList.add("receiving");
-    island.classList.remove("dropped");
-    requestAnimationFrame(updateMarquees);
-  } else if (p.type === "leave") {
-    island.classList.remove("receiving");
-    if (!dropDone && state === "drop") setState(hovered ? "peek" : restState());
-  } else if (p.type === "drop") {
-    dropDone = true;
-    island.classList.remove("receiving");
-    invoke<number>("shelf_add", { paths: p.paths }).then((n) => {
-      island.classList.add("dropped");
-      setText("dropTitle", n ? `Added ${n} ${n === 1 ? "item" : "items"} to Shelf` : "Already on your Shelf");
-      setText("dropSub", "Click to open the Shelf");
-      if (!hovered) scheduleHide(HIDE_AFTER_DROP_MS);
-    });
-  }
+  dropDone = false;
+  clearTimeout(dwellTimer);
+  clearTimeout(hideTimer);
+  setText("dropTitle", "Drop to keep on Shelf");
+  setText("dropSub", p.count > 1 ? `${p.count} items` : p.name);
+  setState("drop");
+  island.classList.add("receiving");
+  island.classList.remove("dropped");
+  requestAnimationFrame(updateMarquees);
+});
+listen("drop-leave", () => {
+  island.classList.remove("receiving");
+  if (!dropDone && state === "drop") setState(hovered ? "peek" : restState());
+});
+listen<{ added: number; got: number }>("drop-done", ({ payload: { added: n, got } }) => {
+  if (draggingOut) return;
+  dropDone = true;
+  island.classList.remove("receiving");
+  island.classList.add("dropped");
+  setText("dropTitle", n ? `Added ${n} ${n === 1 ? "item" : "items"} to Shelf` : got ? "Already on your Shelf" : "Couldn't keep that");
+  setText("dropSub", n || got ? "Click to open the Shelf" : "Try saving it as a file first");
+  if (!hovered) scheduleHide(HIDE_AFTER_DROP_MS);
 });
 
 // ---------- clipboard ----------

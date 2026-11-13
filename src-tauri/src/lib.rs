@@ -1,6 +1,7 @@
 mod audio;
 mod brightness;
 mod clipboard;
+mod dropper;
 mod media;
 mod settings;
 mod shelf;
@@ -633,7 +634,7 @@ async fn quick_launch(target: String, kind: String) {
 
 // ---------- shelf ----------
 
-fn emit_shelf(app: &AppHandle, shelf: &Shelf) {
+pub(crate) fn emit_shelf(app: &AppHandle, shelf: &Shelf) {
     let _ = app.emit("shelf", shelf.list());
 }
 
@@ -782,6 +783,17 @@ pub fn run() {
 
             let win = app.get_webview_window("main").unwrap();
             recover_on_crash(&win);
+            // Our own drop target, so pictures from browsers and chat apps can land on the shelf too.
+            dropper::install(&win);
+            {
+                // WebView2 may add its input window a moment after start; cover that one too.
+                let w = win.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let w2 = w.clone();
+                    let _ = w.run_on_main_thread(move || dropper::install(&w2));
+                });
+            }
             if !enabled {
                 let _ = win.hide();
             }
