@@ -43,7 +43,7 @@ button[disabled] { opacity: 0.28; pointer-events: none; }
 svg { fill: currentColor; }
 img { -webkit-user-drag: none; pointer-events: none; }
 
-body.rest .layer:not(.lv), body.rest .vol { display: none; }
+body.rest .layer:not(.lv), body.rest .vol, body.rest .frost { display: none; }
 body.fs-hide #island { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 
 /* ---------- the island ---------- */
@@ -801,3 +801,57 @@ body[data-theme="aurora"] #island[data-state="open"]:not(.glassy)::after { opaci
 body[data-theme="aurora"] #island > .layer { z-index: 1; }
 .snd .ring .ic { overflow: hidden; display: grid; place-items: center; }
 .snd .ring .ic img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Glass: the whole island is frosted glass made from the cover, still pure black where it
+   meets the camera, with a lit rim like the edge of a glass pane. */
+.frost { display: none; }
+body[data-theme="glass"] .frost {
+  display: block;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  background:
+    radial-gradient(120% 140% at 15% 120%, rgba(120, 130, 160, 0.55), transparent 60%),
+    radial-gradient(120% 140% at 90% 110%, rgba(150, 120, 170, 0.45), transparent 60%),
+    #17171b;
+  mask-image: linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.5) 14px, #000 55%);
+}
+body[data-theme="glass"] .frost img {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(26px) saturate(1.8) brightness(0.72);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+body[data-theme="glass"] #island.has-art .frost img { opacity: 1; }
+/* sheen + rim */
+body[data-theme="glass"] .frost::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.10) 0, rgba(255, 255, 255, 0.02) 38%, transparent 52%),
+    linear-gradient(180deg, transparent 55%, rgba(255, 255, 255, 0.06));
+  box-shadow:
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.35),
+    inset 0.5px 0 0 rgba(255, 255, 255, 0.12),
+    inset -0.5px 0 0 rgba(255, 255, 255, 0.12);
+}
+body[data-theme="glass"] #island:not([data-state="idle"]) .frost { opacity: 1; }
+body[data-theme="glass"] #island > .layer { z-index: 1; }
+body[data-theme="glass"] .glass { display: none; } /* the player's own glass is now everywhere */
+body[data-theme="glass"] {
+  --tile: rgba(255, 255, 255, 0.10);
+  --tile-hover: rgba(255, 255, 255, 0.17);
+  --dim: rgba(245, 245, 250, 0.68);
+}
+body[data-theme="glass"] .snd .ring::before { background: rgba(20, 20, 24, 0.85); }
+body[data-theme="glass"] .sheet { background: rgba(10, 10, 12, 0.62); backdrop-filter: blur(10px); }
+body[data-theme="glass"] .title, body[data-theme="glass"] .tab-label { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); }

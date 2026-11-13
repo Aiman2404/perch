@@ -45,7 +45,7 @@ interface AppView { name: string; target: string; kind: "app" | "url"; icon: str
 interface ShelfItem { id: number; path: string; source: string; name: string; size: number; dir: boolean; copied: boolean; icon: string | null }
 interface Clip { id: number; kind: "text" | "image" | "files"; text: string | null; thumb: string | null; files: string[]; detail: string }
 interface Settings {
-  enabled: boolean; theme: "obsidian" | "graphite" | "aurora"; glassPlayer: boolean; retractMs: number;
+  enabled: boolean; theme: "obsidian" | "graphite" | "aurora" | "glass"; glassPlayer: boolean; retractMs: number;
   fullscreen: "hold" | "hide" | "normal"; volumeStep: number;
   shelfMode: "link" | "copy"; clipboardSize: number; clipboardPaused: boolean; touchpadInvert: boolean;
 }
@@ -603,10 +603,15 @@ listen<Media>("media", ({ payload }) => {
 
 // cover art (+ accent colour pulled from it) also feeds the glass backdrop
 const artBoxes = $$(".art");
-const artImgs = [...$$<HTMLImageElement>(".art img"), $<HTMLImageElement>(".glass img")];
+const artImgs = [
+  ...$$<HTMLImageElement>(".art img"),
+  $<HTMLImageElement>(".glass img"),
+  $<HTMLImageElement>(".frost img"),
+];
 listen<string | null>("media-art", ({ payload }) => {
   hasArt = !!payload;
   artBoxes.forEach((a) => a.classList.toggle("has", hasArt));
+  island.classList.toggle("has-art", hasArt);
   updateGlass();
   if (!payload) {
     root.setProperty("--accent", "245, 245, 247");
