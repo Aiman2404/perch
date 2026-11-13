@@ -39,7 +39,7 @@ fs.writeFileSync(outFile, JSON.stringify({
   pub_date: new Date().toISOString(),
   platforms: { "windows-x86_64": {
     signature: fs.readFileSync(sigFile, "utf8"),
-    url: `https://github.com/Aiman2404/perch/releases/download/${tag}/Perch_${version}_x64-setup.exe`,
+    url: `https://github.com/idlebench/perch/releases/download/${tag}/Perch_${version}_x64-setup.exe`,
   } },
 }, null, 2));
 ' "$version" "$tag" "$setup.sig" "$notes" "$out/latest.json"

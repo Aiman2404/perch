@@ -1,6 +1,6 @@
 [package]
 name = "perch"
-version = "0.2.1"
+version = "0.2.2"
 description = "A tiny, beautiful media island that lives under your webcam on Windows 11"
 authors = ["Aiman2404"]
 edition = "2024"

@@ -12,7 +12,7 @@ itself back up under the camera.
 
 <br>
 
-[![Download Perch for Windows 11](https://img.shields.io/badge/Download-Windows%2011%20%C2%B7%20x64-111?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/Aiman2404/perch/releases/latest/download/Perch-Setup-x64.exe)
+[![Download Perch for Windows 11](https://img.shields.io/badge/Download-Windows%2011%20%C2%B7%20x64-111?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/idlebench/perch/releases/latest/download/Perch-Setup-x64.exe)
 
 <sub>Installs for your user only, no admin needed. Uninstall from Settings → Apps.</sub>
 
@@ -173,4 +173,4 @@ src-tauri/src/
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Made by [idlebench](https://github.com/idlebench).

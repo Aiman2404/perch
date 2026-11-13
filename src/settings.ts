@@ -98,7 +98,7 @@ $$("[data-act]").forEach((b) =>
         await invoke("clip_clear");
         return done(b, "Cleared");
       case "github":
-        return invoke("quick_launch", { target: "https://github.com/Aiman2404/perch", kind: "url" });
+        return invoke("quick_launch", { target: "https://github.com/idlebench/perch", kind: "url" });
     }
   }),
 );
