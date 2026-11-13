@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Perch</title>
+    <link rel="stylesheet" href="/src/settings.css" />
+    <script type="module" src="/src/settings.ts" defer></script>
+  </head>
+  <body>
+    <div class="titlebar" data-tauri-drag-region>
+      <span class="brand" data-tauri-drag-region><i class="mark"></i>Perch</span>
+      <div class="wctl">
+        <button data-win="min" aria-label="Minimize"><svg viewBox="0 0 12 12"><path d="M2 6h8" /></svg></button>
+        <button data-win="close" class="x" aria-label="Close"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg></button>
+      </div>
+    </div>
+
+    <aside>
+      <nav>
+        <a data-sec="general" class="on">General</a>
+        <a data-sec="look">Look</a>
+        <a data-sec="island">Island</a>
+        <span class="grp">Tabs</span>
+        <a data-sec="player">Now playing</a>
+        <a data-sec="apps">Apps</a>
+        <a data-sec="shelf">Shelf</a>
+        <a data-sec="clipboard">Clipboard</a>
+        <a data-sec="sound">Sound</a>
+        <a data-sec="quick">Quick</a>
+      </nav>
+      <div class="mem" title="Private memory of Perch and its web view, right now">
+        <b data-bind="mem">--</b><span>MB, this window included</span>
+        <i class="meter"><i></i></i>
+      </div>
+    </aside>
+
+    <main>
+      <!-- General -->
+      <section data-sec="general" class="on">
+        <div class="hero">
+          <div class="screen">
+            <div class="mini"><span class="cam"></span></div>
+          </div>
+          <div class="hero-txt">
+            <h1 data-bind="heroTitle">Perch is on</h1>
+            <p data-bind="heroSub">Sitting under your camera. Hover the top of the screen.</p>
+          </div>
+          <label class="switch big"><input type="checkbox" data-set="enabled" /><i></i></label>
+        </div>
+
+        <div class="rows">
+          <div class="row">
+            <div><b>Start with Windows</b><p>Perch is there as soon as you sign in.</p></div>
+            <label class="switch"><input type="checkbox" data-auto /><i></i></label>
+          </div>
+          <div class="row">
+            <div><b>Shortcuts</b><p>Things worth knowing.</p></div>
+            <div class="keys">
+              <span><kbd>Scroll</kbd> volume</span>
+              <span><kbd>Ctrl</kbd> + <kbd>Scroll</kbd> brightness</span>
+              <span><kbd>Click</kbd> open panel</span>
+            </div>
+          </div>
+          <div class="row">
+            <div><b>Quit Perch</b><p>Shelf and clipboard history are cleared when Perch quits.</p></div>
+            <button class="btn danger" data-act="quit">Quit</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Look -->
+      <section data-sec="look">
+        <h2>Look</h2>
+        <div class="themes">
+          <button class="theme" data-theme="obsidian"><span class="pv"><i></i></span><b>Obsidian</b><small>Pure black, part of the bezel</small></button>
+          <button class="theme" data-theme="graphite"><span class="pv"><i></i></span><b>Graphite</b><small>Soft charcoal below the camera</small></button>
+          <button class="theme" data-theme="aurora"><span class="pv"><i></i></span><b>Aurora</b><small>Glows with the album colour</small></button>
+        </div>
+        <div class="rows">
+          <div class="row">
+            <div><b>Glass player</b><p>Frosted glass made from the album cover behind Now playing.</p></div>
+            <label class="switch"><input type="checkbox" data-set="glassPlayer" /><i></i></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Island -->
+      <section data-sec="island">
+        <h2>Island</h2>
+        <div class="rows">
+          <div class="row">
+            <div><b>Tuck away after</b><p>How long it waits once the cursor leaves.</p></div>
+            <div class="seg" data-set="retractMs" data-num>
+              <button data-v="1500">1.5 s</button><button data-v="2500">2.5 s</button><button data-v="4000">4 s</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><b>Fullscreen games and videos</b><p>What Perch does while something is fullscreen.</p></div>
+            <div class="seg" data-set="fullscreen">
+              <button data-v="hold">Longer hold</button><button data-v="hide">Hide</button><button data-v="normal">As usual</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Player -->
+      <section data-sec="player">
+        <h2>Now playing</h2>
+        <div class="rows">
+          <div class="row">
+            <div><b>Volume per wheel notch</b><p>For a mouse wheel. Touchpads follow your fingers.</p></div>
+            <div class="seg" data-set="volumeStep" data-num>
+              <button data-v="1">1%</button><button data-v="2">2%</button><button data-v="3">3%</button><button data-v="5">5%</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><b>Flip touchpad direction</b><p>Normally two fingers up means louder. Turn this on if it feels backwards.</p></div>
+            <label class="switch"><input type="checkbox" data-set="touchpadInvert" /><i></i></label>
+          </div>
+          <div class="row">
+            <div><b>Which app it follows</b><p>The one that started playing most recently. With two players open, click the app name in the panel to pick.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Apps -->
+      <section data-sec="apps">
+        <h2>Apps</h2>
+        <p class="lead">Up to six. Add new ones from the island with <b>Add</b>, it searches everything installed and takes web addresses.</p>
+        <div class="list apps-list"></div>
+      </section>
+
+      <!-- Shelf -->
+      <section data-sec="shelf">
+        <h2>Shelf</h2>
+        <div class="rows">
+          <div class="row">
+            <div><b>When you drop a file</b><p>A link keeps pointing at the original. A copy is parked in a temporary folder.</p></div>
+            <div class="seg" data-set="shelfMode">
+              <button data-v="link">Keep a link</button><button data-v="copy">Make a copy</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><b>Empty the shelf</b><p>Removes everything from the shelf. Your files stay where they are.</p></div>
+            <button class="btn" data-act="shelf-clear">Empty</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Clipboard -->
+      <section data-sec="clipboard">
+        <h2>Clipboard</h2>
+        <div class="rows">
+          <div class="row">
+            <div><b>Remember</b><p>How many recent copies to keep. Never written to disk.</p></div>
+            <div class="seg" data-set="clipboardSize" data-num>
+              <button data-v="3">3</button><button data-v="5">5</button><button data-v="8">8</button>
+            </div>
+          </div>
+          <div class="row">
+            <div><b>Pause history</b><p>Stop recording until you turn it back on. Password managers are always skipped.</p></div>
+            <label class="switch"><input type="checkbox" data-set="clipboardPaused" /><i></i></label>
+          </div>
+          <div class="row">
+            <div><b>Clear history</b><p>Forget everything Perch has recorded so far.</p></div>
+            <button class="btn" data-act="clip-clear">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sound -->
+      <section data-sec="sound">
+        <h2>Sound</h2>
+        <p class="lead">In the island's Sound tab, scroll over an app to change only that app's volume.</p>
+        <div class="rows">
+          <div class="row col">
+            <div><b>Output</b><p>Where all sound goes.</p></div>
+            <div class="devs"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick -->
+      <section data-sec="quick">
+        <h2>Quick</h2>
+        <p class="lead">Wi-Fi, Bluetooth, mic, dark mode and a timer, one click each. A running timer stays under the camera as a small countdown and chimes when it's done.</p>
+        <div class="rows">
+          <div class="row">
+            <div><b>Mute microphone</b><p>The same switch as the Quick tab.</p></div>
+            <label class="switch"><input type="checkbox" data-quick="mic" /><i></i></label>
+          </div>
+          <div class="row">
+            <div><b>Dark mode</b><p>Windows and apps.</p></div>
+            <label class="switch"><input type="checkbox" data-quick="dark" /><i></i></label>
+          </div>
+        </div>
+      </section>
+
+      <footer><span data-bind="version"></span> · MIT licensed · <a data-act="github">github.com/Aiman2404/perch</a></footer>
+    </main>
+  </body>
+</html>
