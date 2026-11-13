@@ -43,7 +43,33 @@ itself back up under the camera.
   originals (default) and parking **copies**. Empties on restart or shutdown, survives sleep.
 - **Clipboard**: your last 5 copies (text, images with previews, files). Click one to copy it again.
   **Pause** stops recording; anything a password manager marks as private is never recorded. Memory only.
-- **Sound** and **Quick**: coming next.
+- **Sound**: every app that's making noise, each with its own level ring. **Scroll over an app** to change only
+  that app's volume. With more than one output, the header switches between speakers and headphones.
+- **Quick**: Wi-Fi, Bluetooth, mic mute, dark mode, a timer, and a shortcut to Settings. Battery level sits in the
+  header.
+
+## Live activities
+
+While Perch is tucked away it can still say something:
+
+- **Timer**: a small countdown pill stays under the camera, with a progress line. When it's done the island
+  pulses and chimes; click it to dismiss.
+- **Charger**: plugging in (or out) blooms the island for a moment with the battery level.
+
+## The Perch window
+
+Open it from the tray icon, the Quick tab, or by simply launching Perch again while it's running
+(only one Perch ever runs). Inside:
+
+- **On / off**: a master switch. Off means the island is gone and nothing is tracked; Perch waits in the tray.
+- **Start with Windows**.
+- **Look**: three themes. *Obsidian* (pure black, part of the bezel), *Graphite* (soft charcoal below the
+  camera) and *Aurora* (glows with the album colour), plus the glass player on or off.
+- **Island**: how long it waits before tucking away, and what happens during fullscreen games and videos
+  (longer hold, hide completely, or as usual).
+- A section for **every tab**: volume per notch and touchpad direction, reorder or remove apps, shelf link/copy
+  mode, clipboard size and pause, output device, mic and dark mode.
+- A live **memory meter**, so you can check the "light" claim yourself.
 
 ## What it controls
 
@@ -66,12 +92,14 @@ start something else.
 - [x] **Shelf**: drag in, drag out, open, recycle; link or copy mode
 - [x] **Clipboard**: text, images and files with previews, pause, password-manager exclusion
 - [x] Brightness on Ctrl + scroll, source picker for multiple players, glass player
-- [ ] **Sound**: per-app volume and output device switching
-- [ ] **Quick**: Wi-Fi, Bluetooth, Do Not Disturb, dark mode, battery, focus timer
+- [x] **Sound**: per-app volume and output device switching
+- [x] **Quick**: Wi-Fi, Bluetooth, mic, dark mode, battery, timer
+- [x] **Live activities**: timer countdown, charger
+- [x] **The Perch window**: on/off, start with Windows, themes, a section for every tab
+- [x] Single instance, recovers by itself if the web view crashes
 - [ ] **Lyrics**: time-synced lyrics via [LRCLIB](https://lrclib.net) when available
-- [ ] **Live activities**: timer, charging, mic/camera-in-use dot right next to the actual camera
-- [ ] **Settings** with a section for every tab, plus themes (Obsidian, Frost glass, Aurora glass)
-- [ ] Start with Windows, installer
+- [ ] Mic/camera-in-use dot right next to the actual camera
+- [ ] Installer
 
 ## Why it's light
 
@@ -89,8 +117,9 @@ TypeScript UI draws it.
   when you actually search or drop a file, and unloaded afterwards.
 - **No frameworks.** The entire UI is about 35 KB of JavaScript.
 
-Measured on a 1920×1080 laptop, release build, whole process tree including WebView2: **~80 MB at rest**, up to
-~100 MB while you're actively using the panel.
+Measured on a 1920×1080 laptop, release build, whole process tree including WebView2: **~76 MB at rest**, up to
+~100 MB while you're actively using the panel. The Perch window is a separate page that only exists while it's
+open (about +35 MB), and is gone completely once you close it.
 
 ## Build it
 
@@ -102,17 +131,24 @@ npm run tauri dev                      # run with hot reload
 npx tauri build --no-bundle            # release exe in src-tauri/target/release/perch.exe
 ```
 
-Quit from the tray icon.
+Quit from the tray icon or the Perch window.
 
 ## Project layout
 
 ```
-src/                 UI: index.html, styles.css, main.ts
+index.html           the island            src/main.ts, src/styles.css
+settings.html        the Perch window      src/settings.ts, src/settings.css
 src-tauri/src/
-  tracker.rs         window placement, cursor tracking, click-through, fullscreen detection
-  media.rs           System Media Transport Controls (now playing, controls, art)
-  audio.rs           master volume via Core Audio
-  lib.rs             commands, tray, wiring
+  tracker.rs         window placement, cursor tracking, click-through, fullscreen, charger
+  media.rs           System Media Transport Controls (now playing, sources, controls, art)
+  audio.rs           Core Audio: master, per-app volume, output devices, mic
+  brightness.rs      built-in display brightness (WMI)
+  system.rs          battery, dark mode, radios, start with Windows, memory meter
+  shell.rs           icons, app list, launching, Recycle Bin (one STA worker)
+  shelf.rs           the file shelf (memory only)
+  clipboard.rs       clipboard history (memory only)
+  settings.rs        preferences, the only thing saved to disk
+  lib.rs             commands, tray, windows, wiring
 ```
 
 ## License
