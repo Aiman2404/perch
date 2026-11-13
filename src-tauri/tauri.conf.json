@@ -40,13 +40,32 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "Aiman2404",
+    "copyright": "© 2026 Aiman2404. MIT License.",
+    "category": "Utility",
+    "shortDescription": "A tiny media island under your webcam",
+    "longDescription": "Perch sits under your laptop's webcam and drops down when you need it: what's playing, volume, brightness, quick apps, a file shelf and clipboard history.",
+    "homepage": "https://github.com/Aiman2404/perch",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "displayLanguageSelector": false
+      }
+    }
   }
 }
