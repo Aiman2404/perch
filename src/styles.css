@@ -227,11 +227,12 @@ svg { fill: currentColor; }
 /* player */
 .art.lg { width: 76px; height: 76px; border-radius: 15px; isolation: isolate; }
 .art.lg .halo {
-  inset: 4px;
-  width: auto; height: auto;
-  filter: blur(16px) saturate(1.7);
-  scale: 1.15;
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  filter: blur(14px) saturate(1.7);
   z-index: -1;
+  pointer-events: none;
 }
 .art.has .halo { opacity: 0.55; }
 
