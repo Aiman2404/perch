@@ -13,6 +13,9 @@ const BRIGHT_PER_NOTCH = 5;
 const BRIGHT_PER_PX = 0.08;
 const MAX_QUICK_APPS = 6;
 const REFRESH_AT_REST_MS = 20000; // see setResting()
+// Only go into low-memory mode after the island has been left alone for a while. Doing it
+// right away made quick re-hovers land on a page Windows had just paged out (black island).
+const REST_AFTER_MS = 12000;
 const SHELF_PER_PAGE = 6;
 
 type State = "idle" | "live" | "peek" | "drop" | "open";
@@ -152,7 +155,7 @@ function setResting(on: boolean) {
   clearTimeout(refreshTimer);
   if (on && dirty) {
     refreshTimer = window.setTimeout(() => {
-      if (resting && state === "idle" && !hovered) location.reload();
+      if (resting && state === "idle" && !hovered && !near) location.reload();
     }, REFRESH_AT_REST_MS);
   }
 }
@@ -174,15 +177,33 @@ function setState(next: State) {
   if (prev === "open") closeTransient();
   if (next !== "drop") island.classList.remove("receiving", "dropped");
   if (atRest(next)) {
-    setTimeout(() => {
-      if (!atRest()) return;
-      setTab(0, true);
-      setResting(true);
-    }, 600);
+    setTimeout(() => atRest() && setTab(0, true), 600);
+    scheduleRest();
+  } else {
+    // Never show a layer on a page that's still in rest mode.
+    clearTimeout(restTimer);
+    setResting(false);
   }
   updateGlass();
   requestAnimationFrame(updateMarquees);
 }
+
+let near = false;
+let restTimer = 0;
+function scheduleRest() {
+  clearTimeout(restTimer);
+  restTimer = window.setTimeout(() => {
+    if (atRest() && !hovered && !near) setResting(true);
+    else if (atRest()) scheduleRest();
+  }, REST_AFTER_MS);
+}
+listen<boolean>("near", ({ payload }) => {
+  near = payload;
+  if (near) {
+    clearTimeout(restTimer);
+    setResting(false); // warm up while the cursor is still on its way
+  } else if (atRest() && !hovered) scheduleRest();
+});
 
 /** Tell Rust where the clickable area is so the rest of the window stays click-through. */
 function reportHitRect() {
@@ -1308,4 +1329,4 @@ invoke<AppView[]>("quick_apps").then((a) => {
   quick = a;
   renderApps();
 });
-setTimeout(() => atRest() && setResting(true), 3000);
+scheduleRest();
