@@ -309,6 +309,116 @@ fn brightness_set(level: u8) {
     brightness::set(level);
 }
 
+// ---------- updates ----------
+//
+// Perch checks GitHub for a newer release shortly after starting and then every few hours.
+// Releases carry a latest.json and a signature; the updater refuses anything not signed
+// with Perch's own key. Nothing installs without you clicking Install.
+
+#[derive(Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct UpdateStatus {
+    current: String,
+    available: Option<String>,
+    notes: Option<String>,
+    checking: bool,
+    error: Option<String>,
+}
+
+static UPDATE: Mutex<Option<tauri_plugin_updater::Update>> = Mutex::new(None);
+static UPDATE_STATUS: Mutex<Option<UpdateStatus>> = Mutex::new(None);
+
+fn update_status_now(app: &AppHandle) -> UpdateStatus {
+    UPDATE_STATUS.lock().unwrap().clone().unwrap_or_else(|| UpdateStatus {
+        current: app.package_info().version.to_string(),
+        ..Default::default()
+    })
+}
+
+fn set_update_status(app: &AppHandle, f: impl FnOnce(&mut UpdateStatus)) -> UpdateStatus {
+    let mut st = update_status_now(app);
+    f(&mut st);
+    *UPDATE_STATUS.lock().unwrap() = Some(st.clone());
+    let _ = app.emit("update", &st);
+    if let Some(item) = app.try_state::<UpdateItem>() {
+        let _ = item.0.set_text(match &st.available {
+            Some(v) => format!("Install update {v}"),
+            None => "Check for updates".into(),
+        });
+    }
+    st
+}
+
+struct UpdateItem(MenuItem<tauri::Wry>);
+
+async fn check_for_update(app: &AppHandle) -> UpdateStatus {
+    use tauri_plugin_updater::UpdaterExt;
+    set_update_status(app, |s| s.checking = true);
+    let res = match app.updater() {
+        Ok(u) => u.check().await.map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    };
+    match res {
+        Ok(Some(up)) => {
+            let (v, notes) = (up.version.clone(), up.body.clone());
+            *UPDATE.lock().unwrap() = Some(up);
+            set_update_status(app, |s| {
+                s.checking = false;
+                s.error = None;
+                s.available = Some(v);
+                s.notes = notes;
+            })
+        }
+        Ok(None) => set_update_status(app, |s| {
+            s.checking = false;
+            s.error = None;
+            s.available = None;
+        }),
+        Err(e) => set_update_status(app, |s| {
+            s.checking = false;
+            s.error = Some(e);
+        }),
+    }
+}
+
+async fn install_update(app: &AppHandle) -> Result<(), String> {
+    let up = UPDATE.lock().unwrap().clone().ok_or("No update available")?;
+    shelf::clean_temp();
+    up.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    // On Windows the installer usually takes over before we get here.
+    app.restart();
+}
+
+#[tauri::command]
+fn update_status(app: AppHandle) -> UpdateStatus {
+    update_status_now(&app)
+}
+
+#[tauri::command]
+async fn update_check(app: AppHandle) -> UpdateStatus {
+    check_for_update(&app).await
+}
+
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), String> {
+    install_update(&app).await
+}
+
+fn spawn_update_checks(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio_sleep(Duration::from_secs(20)).await;
+        loop {
+            check_for_update(&app).await;
+            tokio_sleep(Duration::from_secs(6 * 3600)).await;
+        }
+    });
+}
+
+/// A sleep that doesn't need tokio as a direct dependency.
+async fn tokio_sleep(d: Duration) {
+    let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(d)).await;
+}
+
 // ---------- sound ----------
 
 #[derive(Serialize)]
@@ -598,6 +708,7 @@ pub fn run() {
     tauri::Builder::default()
         // Launching Perch while it's running opens its window instead of a second island.
         .plugin(tauri_plugin_single_instance::init(|app, _, _| open_settings(app)))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             shelf::clean_temp();
             let dir = app.path().app_config_dir().unwrap_or_else(|_| std::env::temp_dir().join("Perch"));
@@ -614,10 +725,12 @@ pub fn run() {
             let open = MenuItem::with_id(app, "open", "Open Perch", true, None::<&str>)?;
             let label = if enabled { "Turn Perch off" } else { "Turn Perch on" };
             let toggle = MenuItem::with_id(app, "toggle", label, true, None::<&str>)?;
+            let upd = MenuItem::with_id(app, "update", "Check for updates", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Perch", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &toggle, &sep, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &toggle, &upd, &sep, &quit])?;
             app.manage(ToggleItem(toggle));
+            app.manage(UpdateItem(upd));
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Perch")
@@ -639,6 +752,16 @@ pub fn run() {
                         let on = !app.state::<Store>().get().enabled;
                         set_enabled(app, on);
                     }
+                    "update" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if UPDATE.lock().unwrap().is_some() {
+                                let _ = install_update(&app).await;
+                            } else if check_for_update(&app).await.available.is_none() {
+                                open_settings(&app);
+                            }
+                        });
+                    }
                     "quit" => {
                         shelf::clean_temp();
                         app.exit(0);
@@ -653,6 +776,7 @@ pub fn run() {
                 let _ = win.hide();
             }
             tracker::spawn(win, shared);
+            spawn_update_checks(app.handle().clone());
             if std::env::args().any(|a| a == "--settings") {
                 open_settings(app.handle());
             }
@@ -669,6 +793,9 @@ pub fn run() {
             status,
             autostart_set,
             quit_app,
+            update_status,
+            update_check,
+            update_install,
             sound_state,
             app_volume_set,
             device_set,

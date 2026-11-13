@@ -384,3 +384,15 @@ h1 { margin: 0; font: 600 20px var(--font-display); letter-spacing: -0.01em; }
 .dev i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint); flex: none; transition: box-shadow 0.25s var(--spring); }
 .dev.on i { box-shadow: inset 0 0 0 4.5px var(--fg); }
 .dev.on span { font-weight: 600; }
+
+.btn.primary { background: var(--fg); color: #000; }
+.btn.primary:hover { background: #fff; }
+.row.upd.ready b::after {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: #30d158;
+  vertical-align: middle;
+}
