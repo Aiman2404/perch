@@ -213,6 +213,16 @@ fn open_settings(app: &AppHandle) {
         .first()
         .and_then(|w| w.additional_browser_args.clone())
         .unwrap_or_default();
+    // Build it off the calling thread: creating a webview from a synchronous command (or
+    // anything else running on the event loop) deadlocks on Windows and freezes the island.
+    let app = app.clone();
+    std::thread::spawn(move || build_settings(&app, &args));
+}
+
+fn build_settings(app: &AppHandle, args: &str) {
+    if app.get_webview_window("settings").is_some() {
+        return;
+    }
     let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Perch")
         .inner_size(780.0, 540.0)
@@ -221,12 +231,12 @@ fn open_settings(app: &AppHandle) {
         .shadow(true)
         .background_color(tauri::window::Color(14, 14, 16, 255))
         .center()
-        .additional_browser_args(&args)
+        .additional_browser_args(args)
         .build();
 }
 
 #[tauri::command]
-fn show_settings(app: AppHandle) {
+async fn show_settings(app: AppHandle) {
     open_settings(&app);
 }
 
