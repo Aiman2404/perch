@@ -337,8 +337,8 @@ h1 { margin: 0; font: 600 20px var(--font-display); letter-spacing: -0.01em; }
 .pv i::before, .pv i::after { content: ""; position: absolute; border-radius: 2px; background: rgba(255, 255, 255, 0.85); }
 .pv i::before { left: 10px; top: 9px; width: 16px; height: 16px; border-radius: 4px; background: linear-gradient(135deg, #f59e0b, #d9466f); }
 .pv i::after { left: 32px; top: 12px; width: 38%; height: 4px; box-shadow: 0 7px 0 -0.5px rgba(255, 255, 255, 0.35); }
-[data-theme="graphite"] .pv i { background: linear-gradient(180deg, #000 0, #141416 40%, #232327); }
-[data-theme="aurora"] .pv i { background: radial-gradient(110% 90% at 50% 130%, rgba(232, 107, 82, 0.6), #000 62%); }
+.theme[data-theme="graphite"] .pv i { background: linear-gradient(180deg, #000 0, #141416 40%, #232327); }
+.theme[data-theme="aurora"] .pv i { background: radial-gradient(110% 90% at 50% 130%, rgba(232, 107, 82, 0.6), #000 62%); }
 
 /* ---------- lists ---------- */
 
