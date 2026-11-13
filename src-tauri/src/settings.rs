@@ -1,0 +1,73 @@
+//! Persistent preferences (the only thing Perch keeps across restarts).
+//! Shelf and clipboard contents are deliberately memory-only.
+
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct QuickApp {
+    pub name: String,
+    /// AppUserModelID for apps, URL for websites.
+    pub target: String,
+    /// "app" | "url"
+    pub kind: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Settings {
+    /// None until first run seeds a few sensible defaults.
+    pub quick_apps: Option<Vec<QuickApp>>,
+    /// "link" keeps a reference to the original file, "copy" parks a temporary copy.
+    pub shelf_mode: String,
+    pub clipboard_size: usize,
+    pub clipboard_paused: bool,
+    /// Flip if two-finger volume feels backwards.
+    pub touchpad_invert: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            quick_apps: None,
+            shelf_mode: "link".into(),
+            clipboard_size: 5,
+            clipboard_paused: false,
+            touchpad_invert: false,
+        }
+    }
+}
+
+pub struct Store {
+    path: PathBuf,
+    pub data: Mutex<Settings>,
+}
+
+impl Store {
+    pub fn load(dir: PathBuf) -> Self {
+        let path = dir.join("settings.json");
+        let data = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        Self { path, data: Mutex::new(data) }
+    }
+
+    pub fn get(&self) -> Settings {
+        self.data.lock().unwrap().clone()
+    }
+
+    pub fn update(&self, f: impl FnOnce(&mut Settings)) -> Settings {
+        let mut d = self.data.lock().unwrap();
+        f(&mut d);
+        if let Some(dir) = self.path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Ok(json) = serde_json::to_string_pretty(&*d) {
+            let _ = std::fs::write(&self.path, json);
+        }
+        d.clone()
+    }
+}

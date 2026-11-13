@@ -30,6 +30,7 @@ pub struct Rect {
 pub struct Shared {
     pub hit: Mutex<Rect>,
     pub fullscreen: AtomicBool,
+    pub hovered: AtomicBool,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -95,6 +96,7 @@ pub fn spawn(win: WebviewWindow, shared: std::sync::Arc<Shared>) {
                     let now = lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h;
                     if now != inside {
                         inside = now;
+                        shared.hovered.store(now, Ordering::Relaxed);
                         let _ = win.set_ignore_cursor_events(!now);
                         let _ = win.emit("hover", now);
                     }

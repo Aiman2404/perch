@@ -47,8 +47,3 @@ pub fn set(level: f32) -> Volume {
         })
         .unwrap_or_default()
 }
-
-pub fn step(delta: f32) -> Volume {
-    let cur = get().level;
-    set(cur + delta)
-}
