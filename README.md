@@ -8,7 +8,13 @@ Push your cursor to the top-center of the screen and Perch drops down: what's pl
 and volume on the scroll wheel. Click it and it opens into a small tabbed panel. Leave it alone and it tucks
 itself back up under the camera.
 
-`~3 MB app` · `< 80 MB RAM` · `~0% CPU at rest` · `no player of its own: it controls whatever Windows is playing`
+`1.4 MB installer` · `~76 MB RAM at rest` · `~0% CPU at rest` · `no player of its own: it controls whatever Windows is playing`
+
+<br>
+
+[![Download Perch for Windows 11](https://img.shields.io/badge/Download-Windows%2011%20%C2%B7%20x64-111?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/Aiman2404/perch/releases/latest/download/Perch-Setup-x64.exe)
+
+<sub>Installs for your user only, no admin needed. Uninstall from Settings → Apps.</sub>
 
 </div>
 
@@ -120,6 +126,19 @@ TypeScript UI draws it.
 Measured on a 1920×1080 laptop, release build, whole process tree including WebView2: **~76 MB at rest**, up to
 ~100 MB while you're actively using the panel. The Perch window is a separate page that only exists while it's
 open (about +35 MB), and is gone completely once you close it.
+
+## Before you install
+
+Perch is young (0.1). Things to know:
+
+- **"Windows protected your PC"**: the installer isn't code-signed yet, so SmartScreen warns on first run.
+  Click *More info → Run anyway*. The source is all here if you'd rather build it yourself.
+- **Windows 11, x64 only.** Windows 10 and ARM devices aren't supported yet.
+- **Brightness** works on built-in laptop screens. External monitors don't expose brightness to Windows this way.
+- **Charger activity and battery** only show up on devices with a battery.
+- **Wi-Fi / Bluetooth toggles** depend on the device's radio drivers; if Windows doesn't expose a radio, its tile
+  is greyed out.
+- Tested mainly on one 1920×1080 laptop at 125% scaling. Bug reports from other screens are very welcome.
 
 ## Build it
 
