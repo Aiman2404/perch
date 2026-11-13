@@ -16,6 +16,10 @@ itself back up under the camera.
 
 <sub>Installs for your user only, no admin needed. Uninstall from Settings → Apps.</sub>
 
+<br><br>
+
+<img src="assets/demo.webp" alt="Perch in action: hover to peek, scroll for volume, drop a file on it, switch tabs" width="820">
+
 </div>
 
 ---
@@ -69,8 +73,9 @@ Open it from the tray icon, the Quick tab, or by simply launching Perch again wh
 
 - **On / off**: a master switch. Off means the island is gone and nothing is tracked; Perch waits in the tray.
 - **Start with Windows**.
-- **Look**: three themes. *Obsidian* (pure black, part of the bezel), *Graphite* (soft charcoal below the
-  camera) and *Aurora* (glows with the album colour), plus the glass player on or off.
+- **Look**: four looks. *Obsidian* (pure black, part of the bezel), *Graphite* (soft charcoal below the
+  camera), *Aurora* (glows with the album colour) and *Glass* (the whole island turns to frosted glass made
+  from the album cover), plus the glass player on or off.
 - **Island**: how long it waits before tucking away, and what happens during fullscreen games and videos
   (longer hold, hide completely, or as usual).
 - A section for **every tab**: volume per notch and touchpad direction, reorder or remove apps, shelf link/copy
@@ -130,7 +135,7 @@ open (about +35 MB), and is gone completely once you close it.
 
 ## Before you install
 
-Perch is young (0.1). Things to know:
+Perch is young (0.2). Things to know:
 
 - **"Windows protected your PC"**: the installer isn't code-signed yet, so SmartScreen warns on first run.
   Click *More info → Run anyway*. The source is all here if you'd rather build it yourself.
@@ -170,6 +175,11 @@ src-tauri/src/
   settings.rs        preferences, the only thing saved to disk
   lib.rs             commands, tray, windows, wiring
 ```
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); security issues
+go through [SECURITY.md](SECURITY.md). What changed in each version is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
